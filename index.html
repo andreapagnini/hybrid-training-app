@@ -201,13 +201,13 @@ h1,h2,h3{text-wrap:balance}
 .dr-empty{font-size:14px;color:var(--fg-3);padding:2px 0 4px}
 .mhead{display:grid;grid-template-columns:repeat(7,1fr);font-size:11px;font-weight:600;color:var(--fg-3);text-align:center;margin-bottom:4px}
 .mgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
-.mcell{min-height:56px;border-radius:10px;padding:4px 3px 6px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.mcell{width:100%;min-width:0;-webkit-appearance:none;appearance:none;min-height:56px;border-radius:10px;padding:4px 3px 6px;display:flex;flex-direction:column;align-items:center;gap:4px}
 .mnum{font-size:15px;font-weight:500;width:26px;height:26px;display:grid;place-items:center;border-radius:50%;font-variant-numeric:tabular-nums}
 .mcell.out .mnum{color:var(--fg-3)}
 .mcell.today .mnum{background:var(--tint);color:var(--on-accent);font-weight:700}
 .mcell.sel{background:var(--surface);box-shadow:var(--shadow)}
-.mchips{display:flex;flex-direction:column;gap:3px;width:100%;align-items:center}
-.mchip{display:block;width:82%;height:7px;border-radius:4px;border:1.5px solid var(--c);background:var(--c)}
+.mchips{display:flex;flex-direction:column;gap:3px;width:100%;align-self:stretch;align-items:center}
+.mchip{display:block;flex:none;width:30px;max-width:100%;height:7px;border-radius:4px;border:1.5px solid var(--c);background:var(--c)}
 .mchip.t-gym{--c:var(--gym)} .mchip.t-run{--c:var(--run)} .mchip.t-other{--c:var(--other)} .mchip.t-hybrid{--c:var(--gym);background:linear-gradient(90deg,var(--gym) 50%,var(--run) 50%);border-color:var(--gym) var(--run) var(--run) var(--gym)}
 .mchip.st-planned{background:transparent}
 .mchip.st-partial{background:linear-gradient(90deg,var(--c) 50%,transparent 50%)}
@@ -543,7 +543,7 @@ function emptyState(){
   return {v:1,exercises:[],workouts:[],templates:[],plans:[],dayNotes:{},settings:{weekStart:'mon',weightUnit:'kg',distanceUnit:'km'}};
 }
 
-const APP_VERSION='1.3.0';
+const APP_VERSION='1.3.1';
 const LS_KEY='hybrid-training-v1';
 let state=null;
 function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw){const s=JSON.parse(raw);if(s&&s.v===1&&Array.isArray(s.workouts)){if(!Array.isArray(s.plans))s.plans=[];return s;}}}catch(e){}return emptyState();}
