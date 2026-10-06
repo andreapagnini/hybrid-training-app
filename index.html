@@ -195,6 +195,7 @@ h1,h2,h3{text-wrap:balance}
 .dayrow.drop-over{border-radius:12px;box-shadow:none}
 .dayrow.drop-over,.mcell.drop-over{background:var(--tint-soft)}
 .mcell.drop-over{box-shadow:inset 0 0 0 2px var(--tint)}
+.cal-head .icon-btn.drop-over{background:var(--tint-soft)}
 .dayrow header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .dr-label{font-size:12.5px;font-weight:600;color:var(--fg-2);text-transform:uppercase;letter-spacing:.05em;padding:4px 0}
 .dayrow.today .dr-label{color:var(--tint)}
@@ -546,7 +547,7 @@ function emptyState(){
   return {v:1,exercises:[],workouts:[],templates:[],plans:[],dayNotes:{},settings:{weekStart:'mon',weightUnit:'kg',distanceUnit:'km'}};
 }
 
-const APP_VERSION='1.5.1';
+const APP_VERSION='1.5.2';
 const LS_KEY='hybrid-training-v1';
 let state=null;
 function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw){const s=JSON.parse(raw);if(s&&s.v===1&&Array.isArray(s.workouts)){if(!Array.isArray(s.plans))s.plans=[];return s;}}}catch(e){}return emptyState();}
@@ -648,7 +649,9 @@ const ui={tab:'today',stacks:{today:[],calendar:[],library:[],progress:[]},
   lib:{seg:'exercises',filter:'all',q:''},prog:{ex:'ex-squat'},sheet:null,sheetAnim:false,scroll:{},lastKey:'',toast:null};
 const stack=()=>ui.stacks[ui.tab];
 const topScr=()=>{const s=stack();return s[s.length-1];};
-function dropSettingsOffTab(){Object.keys(ui.stacks).forEach(k=>{if(k===ui.tab)return;const l=ui.stacks[k],i=l.findIndex(x=>x.s==='settings');if(i>=0)l.length=i;});}
+/* Leaving a tab closes its detail screens. An open editor or plan preview stays, so unsaved changes are never lost. */
+const KEEP_OPEN=new Set(['editor','exEditor','planApply']);
+function closeOffTabScreens(){Object.keys(ui.stacks).forEach(k=>{if(k===ui.tab)return;const l=ui.stacks[k];let i=l.length-1;while(i>=0&&!KEEP_OPEN.has(l[i].s))i--;l.length=i+1;});}
 function push(scr){stack().push(scr);ui.sheet=null;render();const sc=$('.scroller');if(sc)sc.scrollTop=0;}
 function pop(){stack().pop();render();}
 function openSheet(s){ui.sheet=s;ui.sheetAnim=true;render();}
@@ -1101,7 +1104,7 @@ function renderSheet(s){
 /* ---------- render ---------- */
 const TABS=[['today','Today',P.today],['calendar','Calendar',P.calendar],['library','Library',P.library],['progress','Progress',P.progress]];
 function render(){
-  dropSettingsOffTab();
+  closeOffTabScreens();
   const sc=$('.scroller');if(sc&&ui.lastKey)ui.scroll[ui.lastKey]=sc.scrollTop;
   const st=stack(),top=st[st.length-1];
   const key=ui.tab+':'+st.length+':'+(top?(top.s+(top.id||top.date||'')):'root')+(ui.tab==='calendar'&&!top?ui.cal.mode:'');
@@ -1491,11 +1494,18 @@ function startDrag(e){
     if(sc){const rr=sc.getBoundingClientRect(),top=G.cy-rr.top,bot=rr.bottom-G.cy,z=44;let v=0;
       if(top<z)v=-Math.ceil((z-top)/6);else if(bot<z)v=Math.ceil((z-bot)/6);
       if(v){const b=sc.scrollTop;sc.scrollTop+=v;if(sc.scrollTop!==b)markDrop(G.cx,G.cy);}}
+    if(G.nav&&Date.now()>=G.nav.t){G.nav.t=Date.now()+900;flipMonth(G.nav.a);}
     raf=requestAnimationFrame(loop);};raf=requestAnimationFrame(loop);
 }
 function moveGhost(x,y){G.cx=x;G.cy=y;ghost.style.transform=`translate(${Math.round(x-G.offX)}px,${Math.round(y-G.offY)}px)${G.rot}`;markDrop(x,y);}
+/* Holding a dragged workout over ‹ or › in Month turns the page. The original card node is put back
+   so the browser keeps sending this touch's events to an element that is still in the page. */
+function flipMonth(a){ui.cal.month=addMonths(ui.cal.month,a==='monPrev'?-1:1);render();
+  const n=document.querySelector(`[data-card][data-wid="${G.id}"]`);if(n&&n!==G.card)n.replaceWith(G.card);markDrop(G.cx,G.cy);}
 function markDrop(x,y){
-  const t=dropAt(x,y);document.querySelectorAll('.drop-over').forEach(n=>{if(n!==t)n.classList.remove('drop-over');});if(t)t.classList.add('drop-over');}
+  const el=document.elementFromPoint(x,y),nav=ui.tab==='calendar'&&ui.cal.mode==='month'&&el&&el.closest('[data-act=monPrev],[data-act=monNext]');
+  if(nav){const a=nav.dataset.act;if(!G.nav||G.nav.a!==a)G.nav={a,t:Date.now()+550};}else G.nav=null;
+  const t=nav||dropAt(x,y);document.querySelectorAll('.drop-over').forEach(n=>{if(n!==t)n.classList.remove('drop-over');});if(t)t.classList.add('drop-over');}
 function dropAt(x,y){const el=document.elementFromPoint(x,y);return el&&el.closest('[data-drop]');}
 
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&ui.lastDay!==todayKey()){ui.lastDay=todayKey();render();}});ui.lastDay=todayKey();
