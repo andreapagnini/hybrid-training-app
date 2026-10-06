@@ -543,7 +543,7 @@ function emptyState(){
   return {v:1,exercises:[],workouts:[],templates:[],plans:[],dayNotes:{},settings:{weekStart:'mon',weightUnit:'kg',distanceUnit:'km'}};
 }
 
-const APP_VERSION='1.4.0';
+const APP_VERSION='1.5.0';
 const LS_KEY='hybrid-training-v1';
 let state=null;
 function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw){const s=JSON.parse(raw);if(s&&s.v===1&&Array.isArray(s.workouts)){if(!Array.isArray(s.plans))s.plans=[];return s;}}}catch(e){}return emptyState();}
@@ -726,13 +726,13 @@ const cleanEntries=entries=>entries.map(e=>({...clone(e),id:uid(),loggedSets:[],
 function planFromWorkouts(ws,name){
   const l=[...ws].sort((a,b)=>a.date.localeCompare(b.date)||a.orderInDay-b.orderInDay),d0=l[0].date;
   return {id:uid(),name,notes:'',createdAt:new Date().toISOString(),startWeekday:fromKey(d0).getDay(),
-    workouts:l.map(w=>({offset:dayIdx(w.date,d0),name:w.name,type:w.type,startTime:w.startTime||null,notes:w.notes||'',entries:cleanEntries(w.entries)}))};
+    workouts:l.map(w=>({offset:dayIdx(w.date,d0),name:w.name,type:w.type,startTime:w.startTime||null,notes:w.notes||'',entries:cleanEntries(w.entries),_src:w}))};
 }
 function nextWeekday(wd){const T=todayKey();return addDays(T,(wd-fromKey(T).getDay()+7)%7);}
 function planFileObj(p){
   const ids=new Set(p.workouts.flatMap(w=>w.entries.map(e=>e.exerciseId)));
   return {kind:'hybrid-training-plan',v:1,exportedAt:new Date().toISOString(),
-    plan:{name:p.name,notes:p.notes||'',startWeekday:p.startWeekday,workouts:p.workouts.map(w=>({...w,entries:w.entries.map(e=>({...e,_open:undefined}))}))},
+    plan:{name:p.name,notes:p.notes||'',startWeekday:p.startWeekday,workouts:p.workouts.map(w=>({...w,templateId:undefined,entries:w.entries.map(e=>({...e,_open:undefined}))}))},
     exercises:state.exercises.filter(e=>ids.has(e.id))};
 }
 function importPlanObj(o){
@@ -751,7 +751,7 @@ function importPlanObj(o){
       .sort((a,b)=>a.offset-b.offset)};
   if(!p.workouts.length)throw new Error('empty plan');
   state.plans.push(p);
-  return {p,added};
+  return {p,added,tpls:ensurePlanTemplates(p)};
 }
 function openPlanApply(p){
   push({s:'planApply',pid:p.id,name:p.name,wd:p.startWeekday,start:nextWeekday(p.startWeekday),
@@ -762,7 +762,7 @@ function handlePlanImport(o){
   try{r=importPlanObj(o);}catch(e){toast('That file is not a training plan from this app.');return;}
   save();ui.sheet=null;ui.tab='library';ui.lib.seg='plans';ui.stacks.library=[{s:'plan',id:r.p.id}];
   openPlanApply(r.p);
-  toast(`Imported “${r.p.name}”${r.added?`, ${plural(r.added,'new exercise')}`:''}`,before);
+  toast(`Imported “${r.p.name}”${r.added?`, ${plural(r.added,'new exercise')}`:''}${r.tpls?`, ${plural(r.tpls,'template')}`:''}`,before);
 }
 function plainCard(w,{cls='',attrs='',tag='div',badge=''}={}){
   return `<${tag} class="wcard compact ${cls}" ${attrs}><div class="wc-in"><span class="tbadge t-${w.type}">${TYPE_ICON[w.type]||TYPE_ICON.other}</span><div class="wc-main"><div class="wc-name">${esc(w.name||'Untitled workout')}</div><div class="wc-meta">${esc(workoutSummary(w))}</div></div>${badge}</div></${tag}>`;
@@ -895,6 +895,7 @@ ${isT?'':`<label class="row"><span class="row-l">Date</span><input class="row-in
 <div class="sec-h"><span>Exercises</span></div><div class="stack">${d.entries.map((e,i)=>edCard(d,e,i)).join('')}</div>
 <button class="add-row" data-act="edAddEx">${sv(P.plus,18)} Add exercise</button>
 <div class="sec-h"><span>Notes</span></div><textarea class="ta" data-in="ed" data-f="notes" placeholder="Focus, cues, where you'll train…">${esc(d.notes)}</textarea>`;
+  if(isT&&!scr.isNew){const up=tplUpcoming(d.id).length,p=d.planId&&pById(d.planId);if(up||p)body+=`<p class="hint" style="margin:10px 4px 0">${p?`Part of “${esc(p.name)}”. `:''}${up?`Linked to ${plural(up,'upcoming workout')} on the calendar.`:''}</p>`;}
   if(isT)body+=`<div class="sec-h"><span>Use it</span></div><div class="group"><button class="row row-btn tint" data-act="edSchedule">Schedule on dates…${sv(P.right,16)}</button>${scr.isNew?'':'<button class="row row-btn danger" data-act="edDelete">Delete template</button>'}</div>`;
   else if(!scr.isNew&&scr.kind!=='planItem')body+=`<div class="group" style="margin-top:22px"><button class="row row-btn danger" data-act="edDelete">Delete workout</button></div>`;
   return {title:scr.kind==='planItem'?'Edit workout':scr.isNew?(isT?'New template':'New workout'):(isT?'Template':'Edit plan'),
@@ -920,8 +921,10 @@ S.library=()=>{
       :'<div class="empty"><h3>No plans yet</h3><p>To make one, go to Calendar, tap Select, pick the workouts and tap Save as plan. Or import a plan file someone shared with you.</p></div>';
     body+=`<div class="sheet-actions"><label class="btn btn-ghost">Import plan file<input type="file" class="file-in" id="planFile" accept=".json,application/json,text/plain"></label></div>`;
   }else{
-    body+=`<p class="hint" style="margin:0 4px 10px">Templates are copied onto the calendar, so editing one day never changes another.</p>`;
-    body+=state.templates.length?`<div class="group">${state.templates.map(t=>`<div class="trow"><button class="lrow" data-act="openTpl" data-id="${t.id}"><span class="tbadge sm t-${t.type}">${TYPE_ICON[t.type]}</span><span class="lrow-main"><b>${esc(t.name)}</b><small>${esc(workoutSummary(t))}</small></span></button><button class="btn-s" data-act="tplSchedule" data-id="${t.id}">Schedule</button></div>`).join('')}</div>`:'<div class="empty"><h3>No templates yet</h3><p>Save a workout as a template from its menu, or create one here.</p></div>';
+    body+=`<p class="hint" style="margin:0 4px 10px">Workouts scheduled from a template stay linked to it. When you edit the template, you can update the upcoming ones too.</p>`;
+    const trow=t=>`<div class="trow"><button class="lrow" data-act="openTpl" data-id="${t.id}"><span class="tbadge sm t-${t.type}">${TYPE_ICON[t.type]}</span><span class="lrow-main"><b>${esc(t.name)}</b><small>${esc(workoutSummary(t))}</small></span></button><button class="btn-s" data-act="tplSchedule" data-id="${t.id}">Schedule</button></div>`;
+    const groups=[...state.plans.map(p=>[p.name,state.templates.filter(t=>t.planId===p.id)]),[state.plans.length?'Other templates':'',state.templates.filter(t=>!t.planId||!pById(t.planId))]].filter(g=>g[1].length);
+    body+=state.templates.length?groups.map(([h,l])=>`${h?`<div class="sec-h"><span>${esc(h)}</span></div>`:''}<div class="group">${l.map(trow).join('')}</div>`).join(''):'<div class="empty"><h3>No templates yet</h3><p>Save a workout as a template from its menu, create one here, or import a plan.</p></div>';
   }
   return {title:'Library',large:true,right:ui.lib.seg==='plans'?'':`<button class="icon-btn" data-act="${ui.lib.seg==='exercises'?'newEx':'newTpl'}" aria-label="${ui.lib.seg==='exercises'?'New exercise':'New template'}">${sv(P.plus,24,2)}</button>`,body};
 };
@@ -1078,8 +1081,11 @@ function renderSheet(s){
     const it=pvItem(s.key),pv=pvScr();if(!it||!pv)return '';title=it.w.name;
     body=`<p class="sheet-sub">${fmt(addDays(pv.start,it.offset),{weekday:'long',day:'numeric',month:'long'})} · ${esc(workoutSummary(it.w))}</p><div class="group act-list"><button class="lrow" data-act="pvEdit">Edit workout</button><button class="lrow" data-act="pvMove">Move to another day…</button><button class="lrow danger" data-act="pvRemove">Remove from this import</button></div>`;
   }else if(s.k==='saveScope'){
-    title='Apply to later workouts?';
-    body=`<p class="sheet-sub">“${esc(s.name)}” comes up ${plural(s.n,'more time')} after this day${s.plan?` in “${esc(s.plan)}”`:''}. Workouts you already logged are never changed.</p><div class="sheet-actions"><button class="btn btn-primary" data-act="scopeAll">This and ${plural(s.n,'later workout')}</button><button class="btn btn-ghost" data-act="scopeOne">Only this workout</button><button class="btn btn-ghost" data-act="sheetClose">Keep editing</button></div>`;
+    title='Apply to later workouts?';if(s.tpl)s.plan='';
+    body=`<p class="sheet-sub">“${esc(s.name)}” comes up ${plural(s.n,'more time')} after this day${s.plan?` in “${esc(s.plan)}”`:''}. ${s.tpl?' Its template is updated too.':''} Workouts you already logged are never changed.</p><div class="sheet-actions"><button class="btn btn-primary" data-act="scopeAll">This and ${plural(s.n,'later workout')}</button><button class="btn btn-ghost" data-act="scopeOne">Only this workout</button><button class="btn btn-ghost" data-act="sheetClose">Keep editing</button></div>`;
+  }else if(s.k==='tplScope'){
+    title='Update planned workouts?';
+    body=`<p class="sheet-sub">“${esc(s.name)}” is planned ${plural(s.n,'more time')} from today on. Workouts you already logged are never changed.</p><div class="sheet-actions"><button class="btn btn-primary" data-act="tplScopeAll">Template and ${plural(s.n,'upcoming workout')}</button><button class="btn btn-ghost" data-act="tplScopeOne">Only the template</button><button class="btn btn-ghost" data-act="sheetClose">Keep editing</button></div>`;
   }else if(s.k==='confirm'){
     title=s.title;
     body=`<p class="sheet-sub">${esc(s.msg)}</p><div class="sheet-actions"><button class="btn btn-danger" data-act="confirmOk">${esc(s.ok)}</button><button class="btn btn-ghost" data-act="sheetClose">Cancel</button></div>`;
@@ -1170,7 +1176,7 @@ const A={
   menuDone:()=>{const id=ui.sheet.wid;ui.sheet=null;setStatus(id,'done',{fill:true});},
   menuSkip:()=>{const id=ui.sheet.wid;ui.sheet=null;setStatus(id,'skipped');},
   menuReset:()=>{const id=ui.sheet.wid;ui.sheet=null;setStatus(id,'planned');},
-  menuTpl:()=>{const w=wById(ui.sheet.wid);ui.sheet=null;const t={id:uid(),name:w.name,type:w.type,notes:w.notes,entries:w.entries.map(e=>({...clone(e),id:uid(),loggedSets:[],loggedCardio:null,isCompleted:false,notes:''}))};state.templates.push(t);save();render();toast(`Saved “${w.name}” as a template`);},
+  menuTpl:()=>{const w=wById(ui.sheet.wid);ui.sheet=null;const t={id:uid(),name:w.name,type:w.type,notes:w.notes,entries:w.entries.map(e=>({...clone(e),id:uid(),loggedSets:[],loggedCardio:null,isCompleted:false,notes:''}))};state.templates.push(t);w.templateId=t.id;save();render();toast(`Saved “${w.name}” as a template`);},
   menuDelete:()=>{const id=ui.sheet.wid,w=wById(id),before=snap();ui.sheet=null;state.workouts=state.workouts.filter(x=>x.id!==id);save();render();toast(`Deleted “${w.name}”`,before);},
   undo:()=>{if(!ui.toast||!ui.toast.undo)return;state=JSON.parse(ui.toast.undo);save();applyTheme();ui.toast=null;renderToast();render();},
   editPlan:d=>{const w=wById(d.wid);push({s:'editor',kind:'workout',isNew:false,draft:clone(w)});},
@@ -1205,21 +1211,27 @@ const A={
   edCancel:()=>pop(),
   edSave:()=>{const scr=topScr(),d=scr.draft;d.entries.forEach(e=>delete e._open);
     if(scr.kind==='planItem'){stack().pop();const pv=pvScr(),it=pv&&pv.items.find(x=>x.key===scr.key);if(it){it.offset=dayIdx(d.date||addDays(pv.start,it.offset),pv.start);const w=clone(d);delete w.date;if(!w.name.trim())w.name=TYPE_LABEL[w.type]+' session';it.w=w;}render();toast('Updated in the preview');return;}
-    if(scr.kind==='template'){if(!d.name.trim())d.name='Untitled template';const i=state.templates.findIndex(t=>t.id===d.id);if(i>=0)state.templates[i]=d;else state.templates.push(d);save();stack().pop();render();toast(`Saved “${d.name}”`);return;}
+    if(scr.kind==='template'){if(!d.name.trim())d.name='Untitled template';const old=tById(d.id);
+      if(old&&tplShape(old)!==tplShape(d)){const up=tplUpcoming(d.id),n=up.filter(x=>!hasLogs(x)).length;
+        if(n){openSheet({k:'tplScope',n,name:old.name});return;}}
+      finishTemplateSave(scr,false);return;}
     if(!d.name.trim())d.name=d.entries.length?exOf(d.entries[0]).title:TYPE_LABEL[d.type]+' session';
     const old=wById(d.id);
     if(old&&!scr.isNew&&planShape(old)!==planShape(d)){const later=laterSiblings(old,d);
-      if(later.length){openSheet({k:'saveScope',n:later.length,name:old.name,plan:old.planId&&pById(old.planId)?pById(old.planId).name:''});return;}}
+      if(later.length){openSheet({k:'saveScope',n:later.length,name:old.name,tpl:!!old.templateId,plan:old.planId&&pById(old.planId)?pById(old.planId).name:''});return;}}
     finishWorkoutSave(scr,false);},
   scopeOne:()=>{ui.sheet=null;finishWorkoutSave(topScr(),false);},
   scopeAll:()=>{ui.sheet=null;finishWorkoutSave(topScr(),true);},
+  tplScopeAll:()=>{ui.sheet=null;finishTemplateSave(topScr(),true);},
+  tplScopeOne:()=>{ui.sheet=null;finishTemplateSave(topScr(),false);},
   edDelete:()=>{const scr=topScr();openSheet({k:'confirm',title:scr.kind==='template'?'Delete template?':'Delete workout?',msg:`“${scr.draft.name||'Untitled'}” will be removed.${scr.kind==='template'?' Workouts already scheduled from it stay on the calendar.':''}`,ok:'Delete',then:'edDelete'});},
   edSchedule:()=>{const scr=topScr(),d=scr.draft;d.entries.forEach(e=>delete e._open);if(!d.name.trim())d.name='Untitled template';const i=state.templates.findIndex(t=>t.id===d.id);if(i>=0)state.templates[i]=clone(d);else state.templates.push(clone(d));scr.isNew=false;save();openSheet({k:'dates',mode:'schedule',tid:d.id,month:monthStart(todayKey()),sel:[]});},
   confirmOk:()=>{const s=ui.sheet;ui.sheet=null;CONFIRM[s.then](s);},
   planFromSel:()=>{if(!ui.cal.selected.size)return;openSheet({k:'planName',name:''});setTimeout(()=>{const i=$('#planNameIn');if(i)i.focus();},300);},
   planSave:()=>{const ws=[...ui.cal.selected].map(wById).filter(Boolean);if(!ws.length){closeSheet();return;}
-    const name=(ui.sheet.name||'').trim()||'My plan',p=planFromWorkouts(ws,name);state.plans.push(p);
-    ui.cal.selected.clear();ui.cal.select=false;ui.sheet=null;save();render();toast(`Saved “${name}” · ${plural(p.workouts.length,'workout')}. Find it in Library, Plans.`);},
+    const before=snap(),name=(ui.sheet.name||'').trim()||'My plan',p=planFromWorkouts(ws,name);state.plans.push(p);const n=ensurePlanTemplates(p);
+    p.workouts.forEach((pw,i)=>{const w=pw._src;delete pw._src;w.templateId=pw.templateId;if(!w.planId)w.planId=p.id;});
+    ui.cal.selected.clear();ui.cal.select=false;ui.sheet=null;save();render();toast(`Saved “${name}” · ${plural(p.workouts.length,'workout')}${n?`, ${plural(n,'new template')}`:''}. Find it in Library, Plans.`,before);},
   openPlan:d=>push({s:'plan',id:d.id}),
   planSchedule:d=>{const p=pById(d.id);if(p)openPlanApply(p);},
   planExport:d=>{const p=pById(d.id);if(!p)return;const slug=p.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'plan';
@@ -1231,7 +1243,7 @@ const A={
   pvRemove:()=>{const pv=pvScr(),k=ui.sheet.key,it=pvItem(k);ui.sheet=null;if(pv)pv.items=pv.items.filter(x=>x.key!==k);render();if(it)toast(`Removed “${it.w.name}” from this import`);},
   pvApply:()=>{const pv=pvScr();if(!pv||!pv.items.length)return;const before=snap();
     const items=[...pv.items].sort((a,b)=>a.offset-b.offset);
-    items.forEach(it=>{const w=workoutFrom(it.w,addDays(pv.start,it.offset));w.source='plan';w.planId=pv.pid;state.workouts.push(w);});
+    items.forEach(it=>{const w=workoutFrom(it.w,addDays(pv.start,it.offset),it.w.templateId);w.source='plan';w.planId=pv.pid;state.workouts.push(w);});
     save();stack().pop();const first=addDays(pv.start,items[0].offset);
     ui.tab='calendar';ui.stacks.calendar=[];ui.cal.mode='week';ui.cal.week=weekStart(first);ui.cal.select=false;ui.cal.selected.clear();render();
     toast(`Added ${plural(items.length,'workout')} from “${pv.name}”`,before);},
@@ -1288,14 +1300,42 @@ try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if
 function downloadFile(text,name){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
 function importText(raw){try{const s=JSON.parse(raw);if(s&&s.kind==='hybrid-training-plan'){pop();handlePlanImport(s);return;}if(!s||s.v!==1||!Array.isArray(s.workouts)||!Array.isArray(s.exercises))throw 0;
   s.templates=Array.isArray(s.templates)?s.templates:[];s.plans=Array.isArray(s.plans)?s.plans:[];s.dayNotes=s.dayNotes||{};s.settings=Object.assign(emptyState().settings,s.settings||{});
-  const before=snap();state=s;save();applyTheme();pop();toast('Backup imported',before);}catch(e){const er=$('#importErr');if(er)er.textContent='That is not a backup from this app. Pick the .json file you exported, or paste its whole text.';}}
+  const before=snap();state=s;linkPlanTemplates();save();applyTheme();pop();toast('Backup imported',before);}catch(e){const er=$('#importErr');if(er)er.textContent='That is not a backup from this app. Pick the .json file you exported, or paste its whole text.';}}
 document.addEventListener('change',e=>{if(e.target&&e.target.id==='planFile'){const f=e.target.files&&e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{let o=null;try{o=JSON.parse(String(r.result));}catch(x){}handlePlanImport(o);};r.readAsText(f);e.target.value='';}});
 document.addEventListener('change',e=>{if(e.target&&e.target.id==='importFile'){const f=e.target.files&&e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>importText(String(r.result));r.readAsText(f);e.target.value='';}});
 /* Same workout (name + plan) on later days: offered when an edit is saved */
 const plannedOnly=entries=>entries.map(e=>({exerciseId:e.exerciseId,plannedSets:e.plannedSets,plannedCardio:e.plannedCardio}));
 const planShape=w=>JSON.stringify([w.name,w.type,w.notes||'',w.startTime||null,plannedOnly(w.entries)]);
 const hasLogs=w=>w.status!=='planned'||w.entries.some(e=>e.notes||e.loggedSets.some(s=>s.isCompleted)||(e.loggedCardio&&Object.entries(e.loggedCardio).some(([k,v])=>k!=='source'&&v!=null&&!(Array.isArray(v)&&!v.length))));
-function laterSiblings(old,d){return state.workouts.filter(x=>x.id!==old.id&&x.name===old.name&&(x.planId||null)===(old.planId||null)&&x.date>d.date);}
+function laterSiblings(old,d){return state.workouts.filter(x=>x.id!==old.id&&x.date>d.date&&(old.templateId?x.templateId===old.templateId:x.name===old.name&&(x.planId||null)===(old.planId||null)));}
+const tplShape=w=>JSON.stringify([w.name,w.type,w.notes||'',plannedOnly(w.entries)]);
+const tplUpcoming=id=>{const T=todayKey();return state.workouts.filter(x=>x.templateId===id&&x.date>=T);};
+const copyShape=(to,from)=>{to.name=from.name;to.type=from.type;to.notes=from.notes||'';to.entries=cleanEntries(from.entries);};
+/* One template per distinct workout in a plan; an identical template already in the library is reused */
+function ensurePlanTemplates(p){
+  const made={};let n=0;
+  p.workouts.forEach(w=>{const k=tplShape(w);
+    if(!made[k]){let t=state.templates.find(t=>tplShape(t)===k);
+      if(!t){t={id:uid(),name:w.name,type:w.type,notes:w.notes||'',entries:cleanEntries(w.entries),planId:p.id};state.templates.push(t);n++;}
+      made[k]=t.id;}
+    w.templateId=made[k];});
+  return n;
+}
+/* Plans made before 1.5.0 had no templates: create them and link the calendar workouts by name */
+function linkPlanTemplates(){
+  let ch=false;
+  state.plans.forEach(p=>{if(!p.workouts.some(w=>!w.templateId))return;ensurePlanTemplates(p);ch=true;
+    state.workouts.forEach(w=>{if(w.planId!==p.id||w.templateId)return;const pw=p.workouts.find(x=>x.name===w.name);if(pw)w.templateId=pw.templateId;});});
+  return ch;
+}
+function finishTemplateSave(scr,all){
+  const d=scr.draft,before=snap(),i=state.templates.findIndex(t=>t.id===d.id);let changed=0;
+  if(i>=0)state.templates[i]=d;else state.templates.push(d);
+  if(i>=0){state.plans.forEach(p=>p.workouts.forEach(w=>{if(w.templateId===d.id)copyShape(w,d);}));
+    if(all)tplUpcoming(d.id).forEach(x=>{if(hasLogs(x))return;copyShape(x,d);changed++;});}
+  save();stack().pop();render();
+  toast(all?`Saved “${d.name}” and ${plural(changed,'upcoming workout')}`:`Saved “${d.name}”`,before);
+}
 function resetPrefill(entries){entries.forEach(e=>{if(!e.loggedSets.some(s=>s.isCompleted))e.loggedSets=[];});}
 function finishWorkoutSave(scr,all){
   const d=scr.draft,i=state.workouts.findIndex(w=>w.id===d.id),before=snap();
@@ -1304,8 +1344,8 @@ function finishWorkoutSave(scr,all){
     if(all){
       laterSiblings(old,d).forEach(x=>{if(hasLogs(x)){skipped++;return;}
         x.name=d.name;x.type=d.type;x.notes=d.notes;x.startTime=d.startTime;x.entries=cleanEntries(d.entries);changed++;});
-      const p=old.planId&&pById(old.planId);
-      if(p)p.workouts.filter(w=>w.name===old.name).forEach(w=>{w.name=d.name;w.type=d.type;w.notes=d.notes;w.startTime=d.startTime;w.entries=cleanEntries(d.entries);});
+      const t=old.templateId&&tById(old.templateId);if(t)copyShape(t,d);
+      state.plans.forEach(p=>p.workouts.forEach(w=>{if(old.templateId?w.templateId===old.templateId:p.id===old.planId&&w.name===old.name){copyShape(w,d);w.startTime=d.startTime;}}));
     }
     resetPrefill(d.entries);
     if(old.date!==d.date)d.orderInDay=workoutsOn(d.date).length;state.workouts[i]=d;}
@@ -1448,6 +1488,7 @@ try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();
 if('serviceWorker' in navigator&&location.protocol!=='file:')window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 applyTheme();
 const clock=()=>{const d=new Date();$('#clock').textContent=`${d.getHours()}:${pad(d.getMinutes())}`;};clock();setInterval(clock,30000);
+if(linkPlanTemplates())save();
 render();
 })();
 </script>
