@@ -12,6 +12,8 @@
 <meta name="theme-color" content="#F2F3F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <meta name="format-detection" content="telephone=no">
+<meta name="author" content="Andrea Pagnini">
+<meta name="copyright" content="© 2026 Andrea Pagnini. All rights reserved.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -540,7 +542,7 @@ function emptyState(){
   return {v:1,exercises:[],workouts:[],templates:[],plans:[],dayNotes:{},settings:{weekStart:'mon',weightUnit:'kg',distanceUnit:'km'}};
 }
 
-const APP_VERSION='1.2.0';
+const APP_VERSION='1.2.1';
 const LS_KEY='hybrid-training-v1';
 let state=null;
 function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw){const s=JSON.parse(raw);if(s&&s.v===1&&Array.isArray(s.workouts)){if(!Array.isArray(s.plans))s.plans=[];return s;}}}catch(e){}return emptyState();}
@@ -1013,7 +1015,7 @@ S.settings=()=>{
   const st=state.settings;
   const body=`<div class="sec-h"><span>Calendar</span></div><div class="group"><div class="row"><span class="row-l">Week starts</span>${seg('setWeek',[['mon','Monday'],['sun','Sunday']],st.weekStart)}</div></div>
 <div class="sec-h"><span>Your data</span></div><div class="group"><button class="row row-btn" data-act="openExport">Export backup${sv(P.right,16)}</button><button class="row row-btn" data-act="openImport">Import backup${sv(P.right,16)}</button><button class="row row-btn danger" data-act="askReset">Erase all data</button></div><p class="hint">Everything stays on this phone: ${state.workouts.length} workout${state.workouts.length===1?'':'s'}, ${state.exercises.length} exercise${state.exercises.length===1?'':'s'}. No account, no network. Weights are in kg and distances in km.${ui.lastBackup?'':' Export a backup now and then and save it to Files.'}</p>
-<div class="sec-h"><span>Connections</span></div><div class="group"><div class="row"><span class="row-l" style="width:auto;color:var(--fg)">Garmin Connect</span><span class="row-v">Coming later</span></div></div><p class="hint">Runs will import into the Actual fields of the matching planned run.</p><p class="hint" style="text-align:center;margin-top:24px">Version ${APP_VERSION}</p>`;
+<div class="sec-h"><span>Connections</span></div><div class="group"><div class="row"><span class="row-l" style="width:auto;color:var(--fg)">Garmin Connect</span><span class="row-v">Coming later</span></div></div><p class="hint">Runs will import into the Actual fields of the matching planned run.</p><p class="hint" style="text-align:center;margin-top:24px">Version ${APP_VERSION}<br>Author: Andrea Pagnini<br>© 2026 Andrea Pagnini. All rights reserved.</p>`;
   return {title:'Settings',body};
 };
 S.data=({mode})=>{
