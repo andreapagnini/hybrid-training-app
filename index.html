@@ -547,7 +547,7 @@ function emptyState(){
   return {v:1,exercises:[],workouts:[],templates:[],plans:[],dayNotes:{},settings:{weekStart:'mon',weightUnit:'kg',distanceUnit:'km'}};
 }
 
-const APP_VERSION='1.5.2';
+const APP_VERSION='1.5.3';
 const LS_KEY='hybrid-training-v1';
 let state=null;
 function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw){const s=JSON.parse(raw);if(s&&s.v===1&&Array.isArray(s.workouts)){if(!Array.isArray(s.plans))s.plans=[];return s;}}}catch(e){}return emptyState();}
@@ -645,7 +645,7 @@ function topKg(e){const k=e.loggedSets.filter(s=>s.isCompleted&&s.weightKg!=null
 /* ---------- UI state ---------- */
 const T0=todayKey();
 const ui={tab:'today',stacks:{today:[],calendar:[],library:[],progress:[]},
-  cal:{mode:'week',week:weekStart(T0),month:monthStart(T0),day:T0,select:false,selected:new Set()},
+  cal:{mode:'month',week:weekStart(T0),month:monthStart(T0),day:T0,select:false,selected:new Set()},
   lib:{seg:'exercises',filter:'all',q:''},prog:{ex:'ex-squat'},sheet:null,sheetAnim:false,scroll:{},lastKey:'',toast:null};
 const stack=()=>ui.stacks[ui.tab];
 const topScr=()=>{const s=stack();return s[s.length-1];};
@@ -1253,7 +1253,7 @@ const A={
     const items=[...pv.items].sort((a,b)=>a.offset-b.offset);
     items.forEach(it=>{const w=workoutFrom(it.w,addDays(pv.start,it.offset),it.w.templateId);w.source='plan';w.planId=pv.pid;state.workouts.push(w);});
     save();stack().pop();const first=addDays(pv.start,items[0].offset);
-    ui.tab='calendar';ui.stacks.calendar=[];ui.cal.mode='week';ui.cal.week=weekStart(first);ui.cal.select=false;ui.cal.selected.clear();render();
+    ui.tab='calendar';ui.stacks.calendar=[];ui.cal.mode='month';ui.cal.week=weekStart(first);ui.cal.month=monthStart(first);ui.cal.day=first;ui.cal.select=false;ui.cal.selected.clear();render();
     toast(`Added ${plural(items.length,'workout')} from “${pv.name}”`,before);},
   libSeg:d=>{ui.lib.seg=d.v;render();},
   libFilter:d=>{ui.lib.filter=d.v;render();},
