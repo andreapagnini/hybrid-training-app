@@ -165,7 +165,9 @@ h1,h2,h3{text-wrap:balance}
 .wcard.sw-l .swipe-bg{background:var(--skip)} .wcard.sw-l .sb-skip{opacity:1}
 .check{flex:none;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--fg-3);display:grid;place-items:center;color:transparent}
 .check.on{background:var(--tint);border-color:var(--tint);color:var(--on-accent)}
-.ghost{position:fixed;left:0;top:0;z-index:1000;pointer-events:none;opacity:.96;box-shadow:0 14px 34px rgba(0,0,0,.28)}
+.ghost{position:fixed;left:0;top:0;z-index:1000;pointer-events:none;opacity:.96;box-shadow:0 14px 34px rgba(0,0,0,.28);transition:none!important;will-change:transform}
+.ghost.mini{display:flex;align-items:center;gap:8px;max-width:200px;padding:6px 12px 6px 6px;border-radius:999px;background:var(--surface);font-size:14px;font-weight:600;white-space:nowrap}
+.ghost.mini span:last-child{overflow:hidden;text-overflow:ellipsis}
 
 /* today */
 .weekstrip{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;background:var(--surface);border-radius:14px;padding:8px 6px;box-shadow:var(--shadow)}
@@ -192,6 +194,7 @@ h1,h2,h3{text-wrap:balance}
 .dayrow{padding:10px 8px;margin:0 -8px;box-shadow:inset 0 -.5px 0 var(--sep);border-radius:0;transition:background .12s}
 .dayrow.drop-over{border-radius:12px;box-shadow:none}
 .dayrow.drop-over,.mcell.drop-over{background:var(--tint-soft)}
+.mcell.drop-over{box-shadow:inset 0 0 0 2px var(--tint)}
 .dayrow header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .dr-label{font-size:12.5px;font-weight:600;color:var(--fg-2);text-transform:uppercase;letter-spacing:.05em;padding:4px 0}
 .dayrow.today .dr-label{color:var(--tint)}
@@ -543,7 +546,7 @@ function emptyState(){
   return {v:1,exercises:[],workouts:[],templates:[],plans:[],dayNotes:{},settings:{weekStart:'mon',weightUnit:'kg',distanceUnit:'km'}};
 }
 
-const APP_VERSION='1.5.0';
+const APP_VERSION='1.5.1';
 const LS_KEY='hybrid-training-v1';
 let state=null;
 function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw){const s=JSON.parse(raw);if(s&&s.v===1&&Array.isArray(s.workouts)){if(!Array.isArray(s.plans))s.plans=[];return s;}}}catch(e){}return emptyState();}
@@ -645,6 +648,7 @@ const ui={tab:'today',stacks:{today:[],calendar:[],library:[],progress:[]},
   lib:{seg:'exercises',filter:'all',q:''},prog:{ex:'ex-squat'},sheet:null,sheetAnim:false,scroll:{},lastKey:'',toast:null};
 const stack=()=>ui.stacks[ui.tab];
 const topScr=()=>{const s=stack();return s[s.length-1];};
+function dropSettingsOffTab(){Object.keys(ui.stacks).forEach(k=>{if(k===ui.tab)return;const l=ui.stacks[k],i=l.findIndex(x=>x.s==='settings');if(i>=0)l.length=i;});}
 function push(scr){stack().push(scr);ui.sheet=null;render();const sc=$('.scroller');if(sc)sc.scrollTop=0;}
 function pop(){stack().pop();render();}
 function openSheet(s){ui.sheet=s;ui.sheetAnim=true;render();}
@@ -1097,6 +1101,7 @@ function renderSheet(s){
 /* ---------- render ---------- */
 const TABS=[['today','Today',P.today],['calendar','Calendar',P.calendar],['library','Library',P.library],['progress','Progress',P.progress]];
 function render(){
+  dropSettingsOffTab();
   const sc=$('.scroller');if(sc&&ui.lastKey)ui.scroll[ui.lastKey]=sc.scrollTop;
   const st=stack(),top=st[st.length-1];
   const key=ui.tab+':'+st.length+':'+(top?(top.s+(top.id||top.date||'')):'root')+(ui.tab==='calendar'&&!top?ui.cal.mode:'');
@@ -1474,12 +1479,22 @@ function endGesture(e,cancelled){
 }
 function startDrag(e){
   clearTimeout(G.timer);G.mode='drag';G.card.classList.remove('pressed');
-  const r=G.card.getBoundingClientRect();G.offX=G.x-r.left;G.offY=G.y-r.top;
-  ghost=G.card.cloneNode(true);ghost.classList.add('ghost');ghost.removeAttribute('data-card');ghost.style.width=r.width+'px';document.body.appendChild(ghost);
+  const r=G.card.getBoundingClientRect();G.offX=G.x-r.left;G.offY=G.y-r.top;G.rot=' rotate(1.5deg) scale(1.03)';
+  if(ui.tab==='calendar'&&ui.cal.mode==='month'){
+    /* Month cells are small: a compact label that floats above the finger keeps the target day visible */
+    const w=wById(G.id);ghost=document.createElement('div');ghost.className='ghost mini';
+    ghost.innerHTML=`<span class="tbadge sm t-${w.type}">${TYPE_ICON[w.type]||TYPE_ICON.other}</span><span>${esc(w.name||'Workout')}</span>`;
+    document.body.appendChild(ghost);const gr=ghost.getBoundingClientRect();G.offX=gr.width/2;G.offY=gr.height+34;G.rot='';
+  }else{ghost=G.card.cloneNode(true);ghost.classList.add('ghost');ghost.removeAttribute('data-card');ghost.style.width=r.width+'px';document.body.appendChild(ghost);}
   G.card.classList.add('drag-src');moveGhost(e.clientX,e.clientY);
-  const loop=()=>{if(!G||G.mode!=='drag')return;const sc=$('.scroller');if(sc){const rr=sc.getBoundingClientRect();if(G.cy<rr.top+56)sc.scrollTop-=7;else if(G.cy>rr.bottom-56)sc.scrollTop+=7;}raf=requestAnimationFrame(loop);};raf=requestAnimationFrame(loop);
+  const loop=()=>{if(!G||G.mode!=='drag')return;const sc=$('.scroller');
+    if(sc){const rr=sc.getBoundingClientRect(),top=G.cy-rr.top,bot=rr.bottom-G.cy,z=44;let v=0;
+      if(top<z)v=-Math.ceil((z-top)/6);else if(bot<z)v=Math.ceil((z-bot)/6);
+      if(v){const b=sc.scrollTop;sc.scrollTop+=v;if(sc.scrollTop!==b)markDrop(G.cx,G.cy);}}
+    raf=requestAnimationFrame(loop);};raf=requestAnimationFrame(loop);
 }
-function moveGhost(x,y){G.cx=x;G.cy=y;ghost.style.transform=`translate(${x-G.offX}px,${y-G.offY}px) rotate(1.5deg) scale(1.03)`;
+function moveGhost(x,y){G.cx=x;G.cy=y;ghost.style.transform=`translate(${Math.round(x-G.offX)}px,${Math.round(y-G.offY)}px)${G.rot}`;markDrop(x,y);}
+function markDrop(x,y){
   const t=dropAt(x,y);document.querySelectorAll('.drop-over').forEach(n=>{if(n!==t)n.classList.remove('drop-over');});if(t)t.classList.add('drop-over');}
 function dropAt(x,y){const el=document.elementFromPoint(x,y);return el&&el.closest('[data-drop]');}
 
