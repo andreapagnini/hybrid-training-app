@@ -543,7 +543,7 @@ function emptyState(){
   return {v:1,exercises:[],workouts:[],templates:[],plans:[],dayNotes:{},settings:{weekStart:'mon',weightUnit:'kg',distanceUnit:'km'}};
 }
 
-const APP_VERSION='1.3.1';
+const APP_VERSION='1.4.0';
 const LS_KEY='hybrid-training-v1';
 let state=null;
 function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw){const s=JSON.parse(raw);if(s&&s.v===1&&Array.isArray(s.workouts)){if(!Array.isArray(s.plans))s.plans=[];return s;}}}catch(e){}return emptyState();}
@@ -1077,6 +1077,9 @@ function renderSheet(s){
   }else if(s.k==='pvMenu'){
     const it=pvItem(s.key),pv=pvScr();if(!it||!pv)return '';title=it.w.name;
     body=`<p class="sheet-sub">${fmt(addDays(pv.start,it.offset),{weekday:'long',day:'numeric',month:'long'})} · ${esc(workoutSummary(it.w))}</p><div class="group act-list"><button class="lrow" data-act="pvEdit">Edit workout</button><button class="lrow" data-act="pvMove">Move to another day…</button><button class="lrow danger" data-act="pvRemove">Remove from this import</button></div>`;
+  }else if(s.k==='saveScope'){
+    title='Apply to later workouts?';
+    body=`<p class="sheet-sub">“${esc(s.name)}” comes up ${plural(s.n,'more time')} after this day${s.plan?` in “${esc(s.plan)}”`:''}. Workouts you already logged are never changed.</p><div class="sheet-actions"><button class="btn btn-primary" data-act="scopeAll">This and ${plural(s.n,'later workout')}</button><button class="btn btn-ghost" data-act="scopeOne">Only this workout</button><button class="btn btn-ghost" data-act="sheetClose">Keep editing</button></div>`;
   }else if(s.k==='confirm'){
     title=s.title;
     body=`<p class="sheet-sub">${esc(s.msg)}</p><div class="sheet-actions"><button class="btn btn-danger" data-act="confirmOk">${esc(s.ok)}</button><button class="btn btn-ghost" data-act="sheetClose">Cancel</button></div>`;
@@ -1204,10 +1207,12 @@ const A={
     if(scr.kind==='planItem'){stack().pop();const pv=pvScr(),it=pv&&pv.items.find(x=>x.key===scr.key);if(it){it.offset=dayIdx(d.date||addDays(pv.start,it.offset),pv.start);const w=clone(d);delete w.date;if(!w.name.trim())w.name=TYPE_LABEL[w.type]+' session';it.w=w;}render();toast('Updated in the preview');return;}
     if(scr.kind==='template'){if(!d.name.trim())d.name='Untitled template';const i=state.templates.findIndex(t=>t.id===d.id);if(i>=0)state.templates[i]=d;else state.templates.push(d);save();stack().pop();render();toast(`Saved “${d.name}”`);return;}
     if(!d.name.trim())d.name=d.entries.length?exOf(d.entries[0]).title:TYPE_LABEL[d.type]+' session';
-    const i=state.workouts.findIndex(w=>w.id===d.id);
-    if(i>=0){const old=state.workouts[i];if(old.date!==d.date)d.orderInDay=workoutsOn(d.date).length;state.workouts[i]=d;}
-    else{d.orderInDay=workoutsOn(d.date).length;state.workouts.push(d);}
-    save();stack().pop();render();toast(scr.isNew?`Added to ${fmtShort(d.date)}`:'Plan saved');},
+    const old=wById(d.id);
+    if(old&&!scr.isNew&&planShape(old)!==planShape(d)){const later=laterSiblings(old,d);
+      if(later.length){openSheet({k:'saveScope',n:later.length,name:old.name,plan:old.planId&&pById(old.planId)?pById(old.planId).name:''});return;}}
+    finishWorkoutSave(scr,false);},
+  scopeOne:()=>{ui.sheet=null;finishWorkoutSave(topScr(),false);},
+  scopeAll:()=>{ui.sheet=null;finishWorkoutSave(topScr(),true);},
   edDelete:()=>{const scr=topScr();openSheet({k:'confirm',title:scr.kind==='template'?'Delete template?':'Delete workout?',msg:`“${scr.draft.name||'Untitled'}” will be removed.${scr.kind==='template'?' Workouts already scheduled from it stay on the calendar.':''}`,ok:'Delete',then:'edDelete'});},
   edSchedule:()=>{const scr=topScr(),d=scr.draft;d.entries.forEach(e=>delete e._open);if(!d.name.trim())d.name='Untitled template';const i=state.templates.findIndex(t=>t.id===d.id);if(i>=0)state.templates[i]=clone(d);else state.templates.push(clone(d));scr.isNew=false;save();openSheet({k:'dates',mode:'schedule',tid:d.id,month:monthStart(todayKey()),sel:[]});},
   confirmOk:()=>{const s=ui.sheet;ui.sheet=null;CONFIRM[s.then](s);},
@@ -1286,6 +1291,30 @@ function importText(raw){try{const s=JSON.parse(raw);if(s&&s.kind==='hybrid-trai
   const before=snap();state=s;save();applyTheme();pop();toast('Backup imported',before);}catch(e){const er=$('#importErr');if(er)er.textContent='That is not a backup from this app. Pick the .json file you exported, or paste its whole text.';}}
 document.addEventListener('change',e=>{if(e.target&&e.target.id==='planFile'){const f=e.target.files&&e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{let o=null;try{o=JSON.parse(String(r.result));}catch(x){}handlePlanImport(o);};r.readAsText(f);e.target.value='';}});
 document.addEventListener('change',e=>{if(e.target&&e.target.id==='importFile'){const f=e.target.files&&e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>importText(String(r.result));r.readAsText(f);e.target.value='';}});
+/* Same workout (name + plan) on later days: offered when an edit is saved */
+const plannedOnly=entries=>entries.map(e=>({exerciseId:e.exerciseId,plannedSets:e.plannedSets,plannedCardio:e.plannedCardio}));
+const planShape=w=>JSON.stringify([w.name,w.type,w.notes||'',w.startTime||null,plannedOnly(w.entries)]);
+const hasLogs=w=>w.status!=='planned'||w.entries.some(e=>e.notes||e.loggedSets.some(s=>s.isCompleted)||(e.loggedCardio&&Object.entries(e.loggedCardio).some(([k,v])=>k!=='source'&&v!=null&&!(Array.isArray(v)&&!v.length))));
+function laterSiblings(old,d){return state.workouts.filter(x=>x.id!==old.id&&x.name===old.name&&(x.planId||null)===(old.planId||null)&&x.date>d.date);}
+function resetPrefill(entries){entries.forEach(e=>{if(!e.loggedSets.some(s=>s.isCompleted))e.loggedSets=[];});}
+function finishWorkoutSave(scr,all){
+  const d=scr.draft,i=state.workouts.findIndex(w=>w.id===d.id),before=snap();
+  let changed=0,skipped=0;
+  if(i>=0){const old=state.workouts[i];
+    if(all){
+      laterSiblings(old,d).forEach(x=>{if(hasLogs(x)){skipped++;return;}
+        x.name=d.name;x.type=d.type;x.notes=d.notes;x.startTime=d.startTime;x.entries=cleanEntries(d.entries);changed++;});
+      const p=old.planId&&pById(old.planId);
+      if(p)p.workouts.filter(w=>w.name===old.name).forEach(w=>{w.name=d.name;w.type=d.type;w.notes=d.notes;w.startTime=d.startTime;w.entries=cleanEntries(d.entries);});
+    }
+    resetPrefill(d.entries);
+    if(old.date!==d.date)d.orderInDay=workoutsOn(d.date).length;state.workouts[i]=d;}
+  else{d.orderInDay=workoutsOn(d.date).length;state.workouts.push(d);}
+  save();stack().pop();render();
+  if(scr.isNew)toast(`Added to ${fmtShort(d.date)}`);
+  else if(all)toast(`Saved here and in ${plural(changed,'later workout')}${skipped?`. ${skipped} already logged, left as they were`:''}`,before);
+  else toast('Plan saved');
+}
 function reorderDay(id,dir){const w=wById(id),l=workoutsOn(w.date),i=l.indexOf(w),j=i+dir;if(j<0||j>=l.length)return;[l[i],l[j]]=[l[j],l[i]];l.forEach((x,k)=>x.orderInDay=k);save();render();}
 
 /* inputs: update state without re-rendering, so focus stays put */
