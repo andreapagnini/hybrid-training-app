@@ -491,6 +491,7 @@ const fmtPace=p=>{if(!p)return '–';p=Math.round(p);return `${Math.floor(p/60)}
 const parseNum=v=>{if(v==null||String(v).trim()==='')return null;const n=parseFloat(String(v).replace(',','.'));return isNaN(n)?null:n;};
 const parseDur=(v,single=60)=>{if(v==null)return null;const s=String(v).trim().replace(/[.,]/g,':');if(!s)return null;const parts=s.split(':').map(x=>x===''?0:Number(x));if(parts.some(isNaN))return null;if(parts.length===1)return Math.round(parts[0]*single);let t=0;parts.forEach(p=>{t=t*60+p;});return Math.round(t);};
 const allSame=a=>a.every(v=>v===a[0]);
+const parseRest=v=>{const s=String(v??'').trim();if(!s)return null;return parseDur(s,1);};
 
 /* ---------- model helpers ---------- */
 function newEntry(ex,o={}){
@@ -500,7 +501,8 @@ function newEntry(ex,o={}){
     for(let i=0;i<n;i++) e.plannedSets.push({index:i+1,
       reps:ex.measurement==='time'?null:(o.reps??ex.defaultReps??8),
       weightKg:ex.measurement==='weight_reps'?(o.kg??ex.defaultWeightKg??null):null,
-      durationSec:ex.measurement==='time'?(o.dur??ex.defaultDurationSec??60):null});
+      durationSec:ex.measurement==='time'?(o.dur??ex.defaultDurationSec??60):null,
+      restSec:o.rest??ex.defaultRestSec??null});
   }else if(ex.category==='run'){
     const iv=ex.measurement==='intervals'?{...(o.iv??ex.defaultIntervals??{reps:6,workM:400,paceSecPerKm:240,recSec:60})}:null;
     const dist=o.dist??ex.defaultDistanceM??null, pace=iv?null:(o.pace??ex.defaultPaceSecPerKm??null);
@@ -514,18 +516,18 @@ function starterExercises(){
   const yt=q=>'https://www.youtube.com/results?search_query='+encodeURIComponent(q);
   const mk=(id,title,category,measurement,tags,d,notes,media)=>({id,title,category,measurement,tags,
     defaultSets:d.sets??null,defaultReps:d.reps??null,defaultWeightKg:d.kg??null,defaultDistanceM:d.dist??null,
-    defaultDurationSec:d.dur??null,defaultPaceSecPerKm:d.pace??null,defaultIntervals:d.iv??null,
+    defaultDurationSec:d.dur??null,defaultRestSec:d.rest??null,defaultPaceSecPerKm:d.pace??null,defaultIntervals:d.iv??null,
     notes:notes||'',media:(media||[]).map(m=>({id:uid(),kind:'url',url:m.url,caption:m.caption})),isArchived:false});
   const exercises=[
-    mk('ex-squat','Back Squat','strength','weight_reps',['legs','barbell'],{sets:4,reps:6,kg:80},'Bar on upper traps, elbows down.\nBig breath and brace before you unrack.\nSit between the heels, knees track over toes, hip crease just below the knee.\nDrive up through mid-foot; chest and hips rise together.',[{url:yt('back squat technique'),caption:'Squat technique'}]),
-    mk('ex-bench','Bench Press','strength','weight_reps',['push','chest','barbell'],{sets:4,reps:6,kg:70},'Shoulder blades pinched and down, feet planted.\nTouch low chest with forearms vertical, press back toward the rack.',[{url:yt('bench press setup'),caption:'Bench setup'}]),
-    mk('ex-deadlift','Deadlift','strength','weight_reps',['legs','posterior','barbell'],{sets:3,reps:5,kg:110},'Bar over mid-foot, shins touch the bar.\nPull the slack out, lats tight, push the floor away.',[]),
-    mk('ex-ohp','Overhead Press','strength','weight_reps',['push','shoulders','barbell'],{sets:3,reps:8,kg:40},'Squeeze glutes, bar path close to the face, head through at the top.',[]),
-    mk('ex-row','Barbell Row','strength','weight_reps',['pull','back','barbell'],{sets:4,reps:8,kg:60},'Hinge to about 30°, pull to the belly button, control the way down.',[]),
-    mk('ex-pullup','Pull-ups','strength','reps_only',['pull','back','bodyweight'],{sets:4,reps:8},'Full hang at the bottom, chin over the bar.\nUse a band if reps drop below 5.',[{url:yt('strict pull up form'),caption:'Strict pull-up'}]),
-    mk('ex-rdl','Romanian Deadlift','strength','weight_reps',['legs','posterior','barbell'],{sets:3,reps:10,kg:70},'Soft knees, push hips back until hamstrings load, bar stays on the thighs.',[]),
-    mk('ex-lunge','Walking Lunges','strength','weight_reps',['legs','dumbbell'],{sets:3,reps:12,kg:16},'Reps per leg, kg per dumbbell. Long step, back knee kisses the floor.',[]),
-    mk('ex-plank','Plank','strength','time',['core'],{sets:3,dur:60},'Elbows under shoulders, ribs down, squeeze glutes. Stop when the hips sag.',[]),
+    mk('ex-squat','Back Squat','strength','weight_reps',['legs','barbell'],{rest:180,sets:4,reps:6,kg:80},'Bar on upper traps, elbows down.\nBig breath and brace before you unrack.\nSit between the heels, knees track over toes, hip crease just below the knee.\nDrive up through mid-foot; chest and hips rise together.',[{url:yt('back squat technique'),caption:'Squat technique'}]),
+    mk('ex-bench','Bench Press','strength','weight_reps',['push','chest','barbell'],{rest:150,sets:4,reps:6,kg:70},'Shoulder blades pinched and down, feet planted.\nTouch low chest with forearms vertical, press back toward the rack.',[{url:yt('bench press setup'),caption:'Bench setup'}]),
+    mk('ex-deadlift','Deadlift','strength','weight_reps',['legs','posterior','barbell'],{rest:180,sets:3,reps:5,kg:110},'Bar over mid-foot, shins touch the bar.\nPull the slack out, lats tight, push the floor away.',[]),
+    mk('ex-ohp','Overhead Press','strength','weight_reps',['push','shoulders','barbell'],{rest:120,sets:3,reps:8,kg:40},'Squeeze glutes, bar path close to the face, head through at the top.',[]),
+    mk('ex-row','Barbell Row','strength','weight_reps',['pull','back','barbell'],{rest:120,sets:4,reps:8,kg:60},'Hinge to about 30°, pull to the belly button, control the way down.',[]),
+    mk('ex-pullup','Pull-ups','strength','reps_only',['pull','back','bodyweight'],{rest:120,sets:4,reps:8},'Full hang at the bottom, chin over the bar.\nUse a band if reps drop below 5.',[{url:yt('strict pull up form'),caption:'Strict pull-up'}]),
+    mk('ex-rdl','Romanian Deadlift','strength','weight_reps',['legs','posterior','barbell'],{rest:120,sets:3,reps:10,kg:70},'Soft knees, push hips back until hamstrings load, bar stays on the thighs.',[]),
+    mk('ex-lunge','Walking Lunges','strength','weight_reps',['legs','dumbbell'],{rest:90,sets:3,reps:12,kg:16},'Reps per leg, kg per dumbbell. Long step, back knee kisses the floor.',[]),
+    mk('ex-plank','Plank','strength','time',['core'],{rest:60,sets:3,dur:60},'Elbows under shoulders, ribs down, squeeze glutes. Stop when the hips sag.',[]),
     mk('ex-easy','Easy Run','run','distance_time',['aerobic'],{dist:8000,pace:330},'Zone 2. Conversational pace.',[]),
     mk('ex-tempo','Tempo Run','run','distance_time',['threshold'],{dist:8000,pace:285},'2 km easy, 5 km comfortably hard, 1 km easy.',[]),
     mk('ex-800','800 m Repeats','run','intervals',['speed','track'],{dist:8000,iv:{reps:6,workM:800,paceSecPerKm:230,recSec:90}},'Warm up 2 km with 4 strides.\n90 s standing or walking recovery between reps.\nCool down 1.2 km.',[{url:yt('800m repeats workout'),caption:'Session explained'}]),
@@ -538,7 +540,7 @@ function emptyState(){
   return {v:1,exercises:[],workouts:[],templates:[],plans:[],dayNotes:{},settings:{weekStart:'mon',weightUnit:'kg',distanceUnit:'km'}};
 }
 
-const APP_VERSION='1.1.0';
+const APP_VERSION='1.2.0';
 const LS_KEY='hybrid-training-v1';
 let state=null;
 function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw){const s=JSON.parse(raw);if(s&&s.v===1&&Array.isArray(s.workouts)){if(!Array.isArray(s.plans))s.plans=[];return s;}}}catch(e){}return emptyState();}
@@ -554,6 +556,8 @@ const workoutsOn=k=>state.workouts.filter(w=>w.date===k).sort((a,b)=>a.orderInDa
 const effStatus=w=>(w.status==='planned'&&w.date<todayKey())?'missed':w.status;
 const exOf=e=>exById(e.exerciseId)||{id:'',title:'Deleted exercise',category:'other',measurement:'time',tags:[]};
 
+const fmtRest=s=>s==null?'':fmtDur(s);
+function restText(sets){const r=sets.map(s=>s.restSec).filter(v=>v!=null);if(!r.length)return '';return allSame(r)&&r.length===sets.length?` · ${fmtRest(r[0])} rest`:` · ${fmtRest(Math.min(...r))}–${fmtRest(Math.max(...r))} rest`;}
 function setsText(sets,m){
   if(!sets.length)return '–';
   if(m==='time'){const a=sets.map(s=>s.durationSec);return allSame(a)?`${sets.length} × ${a[0]} s`:a.join('/')+' s';}
@@ -571,7 +575,7 @@ function cardioPlanText(p){
   if(p.durationSec)return `${Math.round(p.durationSec/60)} min`;
   return '';
 }
-function entrySummary(e){const ex=exOf(e);return ex.category==='strength'?setsText(e.plannedSets,ex.measurement):cardioPlanText(e.plannedCardio);}
+function entrySummary(e){const ex=exOf(e);return ex.category==='strength'?setsText(e.plannedSets,ex.measurement)+restText(e.plannedSets):cardioPlanText(e.plannedCardio);}
 function workoutSummary(w){
   const str=w.entries.filter(e=>exOf(e).category==='strength').length;
   const runs=w.entries.filter(e=>exOf(e).category==='run');
@@ -602,7 +606,7 @@ function entryComplete(e){
 }
 function ensureLogs(w){
   w.entries.forEach(e=>{const ex=exOf(e);
-    if(ex.category==='strength'&&!e.loggedSets.length)e.loggedSets=e.plannedSets.map(s=>({index:s.index,reps:s.reps,weightKg:s.weightKg,durationSec:s.durationSec,isCompleted:false}));});
+    if(ex.category==='strength'&&!e.loggedSets.length)e.loggedSets=e.plannedSets.map(s=>({index:s.index,reps:s.reps,weightKg:s.weightKg,durationSec:s.durationSec,restSec:s.restSec??null,isCompleted:false}));});
 }
 function fillAsPlanned(w){
   ensureLogs(w);
@@ -818,12 +822,13 @@ function logCard(w,e){
   let inner='';
   if(ex.category==='strength'){
     const m=ex.measurement,last=lastTime(w,e);
-    const cols=m==='weight_reps'?'<th>Reps</th><th>kg</th>':m==='time'?'<th>Sec</th>':'<th>Reps</th>';
+    const cols=m==='weight_reps'?'<th>Reps</th><th>Rest</th><th>kg</th>':m==='time'?'<th>Sec</th><th>Rest</th>':'<th>Reps</th><th>Rest</th>';
     const rows=e.loggedSets.map((s,i)=>{const p=e.plannedSets[i],a=`${ids} data-i="${i}"`;
+      const rest=`<td><input class="num" inputmode="decimal" data-in="setRest" ${a} value="${fmtRest(s.restSec)}" placeholder="${p&&p.restSec!=null?fmtRest(p.restSec):'m:ss'}" aria-label="Rest after set ${i+1}"></td>`;
       const planTxt=p?(m==='time'?`${p.durationSec} s`:m==='weight_reps'?`${p.reps??'–'} × ${fmtKg(p.weightKg)}`:`${p.reps??'–'}`):'<span class="muted">extra</span>';
-      const f=m==='weight_reps'?`<td><input class="num" inputmode="numeric" data-in="setReps" ${a} value="${s.reps??''}" aria-label="Reps, set ${i+1}"></td><td><input class="num" inputmode="decimal" data-in="setKg" ${a} value="${s.weightKg??''}" aria-label="Kg, set ${i+1}"></td>`
-        :m==='time'?`<td><input class="num" inputmode="numeric" data-in="setSec" ${a} value="${s.durationSec??''}" aria-label="Seconds, set ${i+1}"></td>`
-        :`<td><input class="num" inputmode="numeric" data-in="setReps" ${a} value="${s.reps??''}" aria-label="Reps, set ${i+1}"></td>`;
+      const f=m==='weight_reps'?`<td><input class="num" inputmode="numeric" data-in="setReps" ${a} value="${s.reps??''}" aria-label="Reps, set ${i+1}"></td>${rest}<td><input class="num" inputmode="decimal" data-in="setKg" ${a} value="${s.weightKg??''}" aria-label="Kg, set ${i+1}"></td>`
+        :m==='time'?`<td><input class="num" inputmode="numeric" data-in="setSec" ${a} value="${s.durationSec??''}" aria-label="Seconds, set ${i+1}"></td>${rest}`
+        :`<td><input class="num" inputmode="numeric" data-in="setReps" ${a} value="${s.reps??''}" aria-label="Reps, set ${i+1}"></td>${rest}`;
       return `<tr class="${s.isCompleted?'ok':''}"><td class="setn">${i+1}</td><td class="plan">${planTxt}</td>${f}<td class="ck"><button class="setcheck ${s.isCompleted?'on':''}" data-act="toggleSet" ${a} aria-label="Confirm set ${i+1}">${sv(P.check,18,3)}</button></td></tr>`;}).join('');
     inner=`${last?`<div class="lc-last">Last time: ${esc(last)}</div>`:''}<table class="sets"><thead><tr><th>Set</th><th>Plan</th>${cols}<th></th></tr></thead><tbody>${rows}</tbody></table><div class="lc-actions"><button class="text-btn" data-act="addSet" ${ids}>+ Set</button><button class="text-btn" data-act="allSets" ${ids}>Complete all</button></div>`;
   }else if(ex.category==='run'){
@@ -865,8 +870,8 @@ function edCard(d,e,i){
   if(e._open){
     if(ex.category==='strength'){
       const m=ex.measurement;
-      const head=m==='weight_reps'?'<th>Reps</th><th>kg</th>':m==='time'?'<th>Sec</th>':'<th>Reps</th>';
-      const rows=e.plannedSets.map((s,j)=>`<tr><td class="setn">${j+1}</td>${m==='weight_reps'?`<td><input class="num" inputmode="numeric" data-in="edSet" ${a} data-j="${j}" data-f="reps" value="${s.reps??''}"></td><td><input class="num" inputmode="decimal" data-in="edSet" ${a} data-j="${j}" data-f="weightKg" value="${s.weightKg??''}"></td>`:m==='time'?`<td><input class="num" inputmode="numeric" data-in="edSet" ${a} data-j="${j}" data-f="durationSec" value="${s.durationSec??''}"></td>`:`<td><input class="num" inputmode="numeric" data-in="edSet" ${a} data-j="${j}" data-f="reps" value="${s.reps??''}"></td>`}<td class="ck"><button class="icon-btn sm" data-act="edDelSet" ${a} data-j="${j}" aria-label="Remove set ${j+1}">${sv(P.x,16)}</button></td></tr>`).join('');
+      const head=m==='weight_reps'?'<th>Reps</th><th>Rest</th><th>kg</th>':m==='time'?'<th>Sec</th><th>Rest</th>':'<th>Reps</th><th>Rest</th>';
+      const rows=e.plannedSets.map((s,j)=>`<tr><td class="setn">${j+1}</td>${m==='weight_reps'?`<td><input class="num" inputmode="numeric" data-in="edSet" ${a} data-j="${j}" data-f="reps" value="${s.reps??''}"></td><td><input class="num" inputmode="decimal" data-in="edSet" ${a} data-j="${j}" data-f="restSec" value="${fmtRest(s.restSec)}" placeholder="m:ss"></td><td><input class="num" inputmode="decimal" data-in="edSet" ${a} data-j="${j}" data-f="weightKg" value="${s.weightKg??''}"></td>`:m==='time'?`<td><input class="num" inputmode="numeric" data-in="edSet" ${a} data-j="${j}" data-f="durationSec" value="${s.durationSec??''}"></td><td><input class="num" inputmode="decimal" data-in="edSet" ${a} data-j="${j}" data-f="restSec" value="${fmtRest(s.restSec)}" placeholder="m:ss"></td>`:`<td><input class="num" inputmode="numeric" data-in="edSet" ${a} data-j="${j}" data-f="reps" value="${s.reps??''}"></td><td><input class="num" inputmode="decimal" data-in="edSet" ${a} data-j="${j}" data-f="restSec" value="${fmtRest(s.restSec)}" placeholder="m:ss"></td>`}<td class="ck"><button class="icon-btn sm" data-act="edDelSet" ${a} data-j="${j}" aria-label="Remove set ${j+1}">${sv(P.x,16)}</button></td></tr>`).join('');
       body=`<table class="sets"><thead><tr><th>Set</th>${head}<th></th></tr></thead><tbody>${rows}</tbody></table><button class="text-btn" data-act="edAddSet" ${a}>+ Set</button>`;
     }else if(ex.category==='run'){
       const p=e.plannedCardio;
@@ -927,7 +932,7 @@ S.exercise=({id})=>{
     else if(ex.measurement==='time'&&ex.category==='strength'){const r=x.e.loggedSets.filter(s=>s.isCompleted).map(s=>s.durationSec||0);v=r.length?Math.max(...r):null;}
     else if(ex.category==='run'){const c=x.e.loggedCardio||{};if(c.splits&&c.splits.length){const t=c.splits.filter(s=>s&&s.durationSec).map(s=>s.durationSec);v=t.length?-t.reduce((a,b)=>a+b,0)/t.length:null;}else v=c.avgPaceSecPerKm?-c.avgPaceSecPerKm:null;}
     if(v!=null&&(best===null||v>best)){best=v;pbIdx=i;}});}
-  const defs=ex.category==='strength'?[['Sets',ex.defaultSets||'–'],ex.measurement==='time'?['Seconds',ex.defaultDurationSec||'–']:['Reps',ex.defaultReps??'–'],...(ex.measurement==='weight_reps'?[['Weight',ex.defaultWeightKg!=null?fmtKg(ex.defaultWeightKg)+' kg':'–']]:[])]
+  const defs=ex.category==='strength'?[['Sets',ex.defaultSets||'–'],ex.measurement==='time'?['Seconds',ex.defaultDurationSec||'–']:['Reps',ex.defaultReps??'–'],['Rest',ex.defaultRestSec!=null?fmtRest(ex.defaultRestSec):'–'],...(ex.measurement==='weight_reps'?[['Weight',ex.defaultWeightKg!=null?fmtKg(ex.defaultWeightKg)+' kg':'–']]:[])]
     :ex.category==='run'?(ex.measurement==='intervals'&&ex.defaultIntervals?[['Reps',ex.defaultIntervals.reps],['Each',ex.defaultIntervals.workM+' m'],['Pace',fmtPace(ex.defaultIntervals.paceSecPerKm)],['Rest',ex.defaultIntervals.recSec+' s']]:[['Distance',fmtKm(ex.defaultDistanceM)+' km'],['Pace',fmtPace(ex.defaultPaceSecPerKm)+' /km']])
     :[['Duration',Math.round((ex.defaultDurationSec||0)/60)+' min']];
   const body=`<div class="ex-head"><span class="eyebrow">${ex.category==='strength'?'Gym':ex.category==='run'?'Run':'Other'} · ${({weight_reps:'Weight × reps',reps_only:'Reps only',time:'Timed',distance_time:'Distance & time',intervals:'Intervals'})[ex.measurement]}</span><h1>${esc(ex.title)}</h1><div>${ex.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div></div>
@@ -946,6 +951,7 @@ S.exEditor=(scr)=>{
     defs=`<label class="row"><span class="row-l">Sets</span><input class="row-in" inputmode="numeric" ${a('sets')} value="${d.defaultSets??''}" placeholder="3"></label>`+
       (d.measurement==='time'?`<label class="row"><span class="row-l">Seconds</span><input class="row-in" inputmode="numeric" ${a('durSec')} value="${d.defaultDurationSec??''}" placeholder="60"></label>`
         :`<label class="row"><span class="row-l">Reps</span><input class="row-in" inputmode="numeric" ${a('reps')} value="${d.defaultReps??''}" placeholder="8"></label>`)+
+      `<label class="row"><span class="row-l">Rest</span><input class="row-in" inputmode="decimal" ${a('rest')} value="${fmtRest(d.defaultRestSec)}" placeholder="1:30 or 90"></label>`+
       (d.measurement==='weight_reps'?`<label class="row"><span class="row-l">Weight (kg)</span><input class="row-in" inputmode="decimal" ${a('kg')} value="${d.defaultWeightKg??''}" placeholder="Optional"></label>`:'');
   }else if(d.category==='run'){
     if(d.measurement==='intervals'){const iv=d.defaultIntervals||{};
@@ -1110,7 +1116,7 @@ function workoutFrom(src,date,templateId){
 function getEntry(ds){const w=wById(ds.wid);const e=w&&w.entries.find(x=>x.id===ds.eid);return {w,e};}
 function editorScr(){for(let i=stack().length-1;i>=0;i--){if(stack()[i].s==='editor')return stack()[i];}return null;}
 function newWorkoutDraft(date){return {id:uid(),date,orderInDay:0,startTime:null,name:'',type:'gym',status:'planned',entries:[],sessionRPE:null,durationSec:null,notes:'',templateId:null,source:'manual',externalId:null,completedAt:null};}
-function newExDraft(title=''){return {id:uid(),title,category:'strength',measurement:'weight_reps',tags:[],defaultSets:3,defaultReps:8,defaultWeightKg:null,defaultDistanceM:null,defaultDurationSec:null,defaultPaceSecPerKm:null,defaultIntervals:null,notes:'',media:[],isArchived:false};}
+function newExDraft(title=''){return {id:uid(),title,category:'strength',measurement:'weight_reps',tags:[],defaultSets:3,defaultReps:8,defaultRestSec:null,defaultWeightKg:null,defaultDistanceM:null,defaultDurationSec:null,defaultPaceSecPerKm:null,defaultIntervals:null,notes:'',media:[],isArchived:false};}
 function syncRunInputs(e,eid){
   const c=e.loggedCardio||{},set=(f,v)=>{const el=document.querySelector(`[data-in="run"][data-f="${f}"][data-eid="${eid}"]`);if(el&&document.activeElement!==el)el.value=v;};
   set('dist',c.distanceM?fmtKm(c.distanceM):'');set('dur',c.durationSec?fmtDur(c.durationSec):'');set('pace',c.avgPaceSecPerKm?fmtPace(c.avgPaceSecPerKm):'');
@@ -1162,7 +1168,7 @@ const A={
   undo:()=>{if(!ui.toast||!ui.toast.undo)return;state=JSON.parse(ui.toast.undo);save();ui.toast=null;renderToast();render();},
   editPlan:d=>{const w=wById(d.wid);push({s:'editor',kind:'workout',isNew:false,draft:clone(w)});},
   toggleSet:d=>{const {w,e}=getEntry(d);const s=e.loggedSets[+d.i];s.isCompleted=!s.isCompleted;e.isCompleted=entryComplete(e);save();render();},
-  addSet:d=>{const {e}=getEntry(d);const last=e.loggedSets[e.loggedSets.length-1]||{};e.loggedSets.push({index:e.loggedSets.length+1,reps:last.reps??null,weightKg:last.weightKg??null,durationSec:last.durationSec??null,isCompleted:false});e.isCompleted=false;save();render();},
+  addSet:d=>{const {e}=getEntry(d);const last=e.loggedSets[e.loggedSets.length-1]||{};e.loggedSets.push({index:e.loggedSets.length+1,reps:last.reps??null,weightKg:last.weightKg??null,durationSec:last.durationSec??null,restSec:last.restSec??null,isCompleted:false});e.isCompleted=false;save();render();},
   allSets:d=>{const {e}=getEntry(d);e.loggedSets.forEach(s=>s.isCompleted=true);e.isCompleted=true;save();render();},
   runAsPlanned:d=>{const {e}=getEntry(d);const p=e.plannedCardio||{};const c=e.loggedCardio||{};
     e.loggedCardio={...c,distanceM:p.distanceM??null,durationSec:p.durationSec??null,avgPaceSecPerKm:p.paceSecPerKm??null,source:'manual'};
@@ -1274,6 +1280,7 @@ function reorderDay(id,dir){const w=wById(id),l=workoutsOn(w.date),i=l.indexOf(w
 const IN={
   setReps:(v,d)=>{const {e}=getEntry(d);e.loggedSets[+d.i].reps=v===''?null:parseInt(v,10);save();},
   setKg:(v,d)=>{const {e}=getEntry(d);e.loggedSets[+d.i].weightKg=parseNum(v);save();},
+  setRest:(v,d)=>{const {e}=getEntry(d);e.loggedSets[+d.i].restSec=parseRest(v);save();},
   setSec:(v,d)=>{const {e}=getEntry(d);e.loggedSets[+d.i].durationSec=v===''?null:parseInt(v,10);save();},
   entryNote:(v,d)=>{const {e}=getEntry(d);e.notes=v;save();},
   otherMin:(v,d)=>{const {e}=getEntry(d);const n=parseNum(v);e.loggedCardio={...(e.loggedCardio||{}),durationSec:n!=null?Math.round(n*60):null};save();},
@@ -1282,7 +1289,7 @@ const IN={
   dayNote:(v,d)=>{(state.dayNotes[d.date]=state.dayNotes[d.date]||{}).text=v;save();},
   dayBW:(v,d)=>{(state.dayNotes[d.date]=state.dayNotes[d.date]||{}).bodyweightKg=parseNum(v);save();},
   ed:(v,d)=>{const x=topScr().draft;x[d.f]=v||(d.f==='startTime'?null:v);if(d.f==='date'&&!v)x.date=todayKey();},
-  edSet:(v,d)=>{const s=topScr().draft.entries[+d.i].plannedSets[+d.j];s[d.f]=d.f==='weightKg'?parseNum(v):(v===''?null:parseInt(v,10));},
+  edSet:(v,d)=>{const s=topScr().draft.entries[+d.i].plannedSets[+d.j];s[d.f]=d.f==='weightKg'?parseNum(v):d.f==='restSec'?parseRest(v):(v===''?null:parseInt(v,10));},
   edC:(v,d)=>{const p=topScr().draft.entries[+d.i].plannedCardio,f=d.f;
     if(f==='dist'){const n=parseNum(v);p.distanceM=n!=null?Math.round(n*1000):null;}
     else if(f==='pace')p.paceSecPerKm=parseDur(v,60);
@@ -1300,6 +1307,7 @@ const IN={
     else if(f==='reps')x.defaultReps=n!=null?Math.round(n):null;
     else if(f==='kg')x.defaultWeightKg=n;
     else if(f==='durSec')x.defaultDurationSec=n!=null?Math.round(n):null;
+    else if(f==='rest')x.defaultRestSec=parseRest(v);
     else if(f==='durMin')x.defaultDurationSec=n!=null?Math.round(n*60):null;
     else if(f==='distKm')x.defaultDistanceM=n!=null?Math.round(n*1000):null;
     else if(f==='pace')x.defaultPaceSecPerKm=parseDur(v,60);
