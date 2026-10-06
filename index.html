@@ -11,6 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#F2F3F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<script>try{var t=(JSON.parse(localStorage.getItem('hybrid-training-v1'))||{}).settings.theme;if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
 <meta name="format-detection" content="telephone=no">
 <meta name="author" content="Andrea Pagnini">
 <meta name="copyright" content="© 2026 Andrea Pagnini. All rights reserved.">
@@ -542,7 +543,7 @@ function emptyState(){
   return {v:1,exercises:[],workouts:[],templates:[],plans:[],dayNotes:{},settings:{weekStart:'mon',weightUnit:'kg',distanceUnit:'km'}};
 }
 
-const APP_VERSION='1.2.1';
+const APP_VERSION='1.3.0';
 const LS_KEY='hybrid-training-v1';
 let state=null;
 function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw){const s=JSON.parse(raw);if(s&&s.v===1&&Array.isArray(s.workouts)){if(!Array.isArray(s.plans))s.plans=[];return s;}}}catch(e){}return emptyState();}
@@ -1013,7 +1014,8 @@ S.progress=()=>{
 };
 S.settings=()=>{
   const st=state.settings;
-  const body=`<div class="sec-h"><span>Calendar</span></div><div class="group"><div class="row"><span class="row-l">Week starts</span>${seg('setWeek',[['mon','Monday'],['sun','Sunday']],st.weekStart)}</div></div>
+  const body=`<div class="sec-h"><span>Appearance</span></div><div class="group"><div class="row"><span class="row-l">Theme</span>${seg('setTheme',[['auto','Automatic'],['light','Light'],['dark','Dark']],st.theme||'auto')}</div></div><p class="hint">Automatic follows your phone's light or dark setting.</p>
+<div class="sec-h"><span>Calendar</span></div><div class="group"><div class="row"><span class="row-l">Week starts</span>${seg('setWeek',[['mon','Monday'],['sun','Sunday']],st.weekStart)}</div></div>
 <div class="sec-h"><span>Your data</span></div><div class="group"><button class="row row-btn" data-act="openExport">Export backup${sv(P.right,16)}</button><button class="row row-btn" data-act="openImport">Import backup${sv(P.right,16)}</button><button class="row row-btn danger" data-act="askReset">Erase all data</button></div><p class="hint">Everything stays on this phone: ${state.workouts.length} workout${state.workouts.length===1?'':'s'}, ${state.exercises.length} exercise${state.exercises.length===1?'':'s'}. No account, no network. Weights are in kg and distances in km.${ui.lastBackup?'':' Export a backup now and then and save it to Files.'}</p>
 <div class="sec-h"><span>Connections</span></div><div class="group"><div class="row"><span class="row-l" style="width:auto;color:var(--fg)">Garmin Connect</span><span class="row-v">Coming later</span></div></div><p class="hint">Runs will import into the Actual fields of the matching planned run.</p><p class="hint" style="text-align:center;margin-top:24px">Version ${APP_VERSION}<br>Author: Andrea Pagnini<br>© 2026 Andrea Pagnini. All rights reserved.</p>`;
   return {title:'Settings',body};
@@ -1167,7 +1169,7 @@ const A={
   menuReset:()=>{const id=ui.sheet.wid;ui.sheet=null;setStatus(id,'planned');},
   menuTpl:()=>{const w=wById(ui.sheet.wid);ui.sheet=null;const t={id:uid(),name:w.name,type:w.type,notes:w.notes,entries:w.entries.map(e=>({...clone(e),id:uid(),loggedSets:[],loggedCardio:null,isCompleted:false,notes:''}))};state.templates.push(t);save();render();toast(`Saved “${w.name}” as a template`);},
   menuDelete:()=>{const id=ui.sheet.wid,w=wById(id),before=snap();ui.sheet=null;state.workouts=state.workouts.filter(x=>x.id!==id);save();render();toast(`Deleted “${w.name}”`,before);},
-  undo:()=>{if(!ui.toast||!ui.toast.undo)return;state=JSON.parse(ui.toast.undo);save();ui.toast=null;renderToast();render();},
+  undo:()=>{if(!ui.toast||!ui.toast.undo)return;state=JSON.parse(ui.toast.undo);save();applyTheme();ui.toast=null;renderToast();render();},
   editPlan:d=>{const w=wById(d.wid);push({s:'editor',kind:'workout',isNew:false,draft:clone(w)});},
   toggleSet:d=>{const {w,e}=getEntry(d);const s=e.loggedSets[+d.i];s.isCompleted=!s.isCompleted;e.isCompleted=entryComplete(e);save();render();},
   addSet:d=>{const {e}=getEntry(d);const last=e.loggedSets[e.loggedSets.length-1]||{};e.loggedSets.push({index:e.loggedSets.length+1,reps:last.reps??null,weightKg:last.weightKg??null,durationSec:last.durationSec??null,restSec:last.restSec??null,isCompleted:false});e.isCompleted=false;save();render();},
@@ -1248,6 +1250,7 @@ const A={
   progEx:d=>{ui.prog.ex=d.v;render();},
   setW:d=>{state.settings.weightUnit=d.v;save();render();},
   setD:d=>{state.settings.distanceUnit=d.v;save();render();},
+  setTheme:d=>{state.settings.theme=d.v;save();applyTheme();render();},
   setWeek:d=>{state.settings.weekStart=d.v;ui.cal.week=weekStart(ui.cal.week);save();render();},
   openExport:()=>push({s:'data',mode:'export'}),
   openImport:()=>push({s:'data',mode:'import'}),
@@ -1263,17 +1266,24 @@ const CONFIRM={
     else state.workouts=state.workouts.filter(w=>w.id!==d.id);
     save();stack().pop();if(scr.kind==='workout'&&topScr()&&topScr().s==='workout')stack().pop();render();toast(`Deleted “${d.name}”`,before);},
   planDelete:s=>{const before=snap(),p=pById(s.pid);state.plans=state.plans.filter(x=>x.id!==s.pid);save();if(topScr()&&topScr().s==='plan')stack().pop();render();if(p)toast(`Deleted “${p.name}”`,before);},
-  reset:()=>{const before=snap();state=emptyState();save();ui.stacks={today:[],calendar:[],library:[],progress:[]};ui.cal.select=false;ui.cal.selected.clear();ui.tab='today';render();toast('All data erased',before);}
+  reset:()=>{const before=snap();state=emptyState();save();applyTheme();ui.stacks={today:[],calendar:[],library:[],progress:[]};ui.cal.select=false;ui.cal.selected.clear();ui.tab='today';render();toast('All data erased',before);}
 };
 function shareFile(json,name,done){
   try{const f=new File([json],name,{type:'application/json'});
     if(navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f],title:name}).then(done,err=>{if(err&&err.name!=='AbortError'){downloadFile(json,name);done();}});return;}}catch(e){}
   downloadFile(json,name);done();
 }
+function applyTheme(){
+  const t=state.settings.theme,root=document.documentElement;
+  if(t==='light'||t==='dark')root.setAttribute('data-theme',t);else root.removeAttribute('data-theme');
+  const dark=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m=>{m.setAttribute('content',dark?'#000000':'#F2F3F7');if(t==='light'||t==='dark')m.removeAttribute('media');});
+}
+try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(!state.settings.theme||state.settings.theme==='auto')applyTheme();});}catch(e){}
 function downloadFile(text,name){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
 function importText(raw){try{const s=JSON.parse(raw);if(s&&s.kind==='hybrid-training-plan'){pop();handlePlanImport(s);return;}if(!s||s.v!==1||!Array.isArray(s.workouts)||!Array.isArray(s.exercises))throw 0;
   s.templates=Array.isArray(s.templates)?s.templates:[];s.plans=Array.isArray(s.plans)?s.plans:[];s.dayNotes=s.dayNotes||{};s.settings=Object.assign(emptyState().settings,s.settings||{});
-  const before=snap();state=s;save();pop();toast('Backup imported',before);}catch(e){const er=$('#importErr');if(er)er.textContent='That is not a backup from this app. Pick the .json file you exported, or paste its whole text.';}}
+  const before=snap();state=s;save();applyTheme();pop();toast('Backup imported',before);}catch(e){const er=$('#importErr');if(er)er.textContent='That is not a backup from this app. Pick the .json file you exported, or paste its whole text.';}}
 document.addEventListener('change',e=>{if(e.target&&e.target.id==='planFile'){const f=e.target.files&&e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{let o=null;try{o=JSON.parse(String(r.result));}catch(x){}handlePlanImport(o);};r.readAsText(f);e.target.value='';}});
 document.addEventListener('change',e=>{if(e.target&&e.target.id==='importFile'){const f=e.target.files&&e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>importText(String(r.result));r.readAsText(f);e.target.value='';}});
 function reorderDay(id,dir){const w=wById(id),l=workoutsOn(w.date),i=l.indexOf(w),j=i+dir;if(j<0||j>=l.length)return;[l[i],l[j]]=[l[j],l[i]];l.forEach((x,k)=>x.orderInDay=k);save();render();}
@@ -1407,6 +1417,7 @@ function dropAt(x,y){const el=document.elementFromPoint(x,y);return el&&el.close
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&ui.lastDay!==todayKey()){ui.lastDay=todayKey();render();}});ui.lastDay=todayKey();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
 if('serviceWorker' in navigator&&location.protocol!=='file:')window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+applyTheme();
 const clock=()=>{const d=new Date();$('#clock').textContent=`${d.getHours()}:${pad(d.getMinutes())}`;};clock();setInterval(clock,30000);
 render();
 })();

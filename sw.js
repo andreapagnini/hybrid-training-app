@@ -1,6 +1,6 @@
 // Offline support: serve the app from cache, refresh the cache in the background.
 // Bump VERSION whenever any file below changes so phones pick up the update.
-const VERSION = 'v1.2.1';
+const VERSION = 'v1.3.0';
 const CACHE = 'hybrid-training-' + VERSION;
 const FILES = [
   './',
