@@ -214,7 +214,22 @@ h1,h2,h3{text-wrap:balance}
 .legend span{display:flex;align-items:center;gap:6px}
 .legend .mchip{width:18px}
 .daypanel{margin-top:14px}
-.selbar{display:flex;gap:8px;width:100%}
+.selbar{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
+.pv-week{margin-top:16px}
+.pv-wh{font-size:12.5px;font-weight:600;color:var(--fg-2);margin:0 4px 2px;text-transform:uppercase;letter-spacing:.05em}
+.pv-day{display:flex;gap:10px;padding:8px 0;border-bottom:.5px solid var(--sep)}
+.pv-day:last-child{border-bottom:0}
+.pv-d{width:44px;flex:none;font-size:12px;color:var(--fg-2);font-weight:600;padding-top:6px;text-transform:uppercase}
+.pv-d b{display:block;font-size:18px;color:var(--fg);text-transform:none}
+.pv-list{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.pv-rest{color:var(--fg-3);font-size:14px;padding:8px 0}
+.pv-list .wcard{display:block;width:100%;text-align:left}
+.wcard.pv-old{box-shadow:none;opacity:.6}
+.wcard.pv-old .wc-in{background:var(--surface-2)}
+.wcard.pv-new .wc-in{box-shadow:inset 3px 0 0 var(--tint)}
+.pv-tag{flex:none;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--tint)}
+.pv-old .pv-tag{color:var(--fg-3)}
+.warn{color:var(--partial)}
 .selbar .btn{height:42px;font-size:14px}
 
 /* workout detail */
@@ -520,13 +535,13 @@ function starterExercises(){
   return exercises;
 }
 function emptyState(){
-  return {v:1,exercises:[],workouts:[],templates:[],dayNotes:{},settings:{weekStart:'mon',weightUnit:'kg',distanceUnit:'km'}};
+  return {v:1,exercises:[],workouts:[],templates:[],plans:[],dayNotes:{},settings:{weekStart:'mon',weightUnit:'kg',distanceUnit:'km'}};
 }
 
-const APP_VERSION='1.0.0';
+const APP_VERSION='1.1.0';
 const LS_KEY='hybrid-training-v1';
 let state=null;
-function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw){const s=JSON.parse(raw);if(s&&s.v===1&&Array.isArray(s.workouts))return s;}}catch(e){}return emptyState();}
+function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw){const s=JSON.parse(raw);if(s&&s.v===1&&Array.isArray(s.workouts)){if(!Array.isArray(s.plans))s.plans=[];return s;}}}catch(e){}return emptyState();}
 let saveWarned=false;
 function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(state));}catch(e){if(!saveWarned){saveWarned=true;setTimeout(()=>toast('Could not save on this device. Export a backup.'),0);}}}
 state=load();
@@ -534,6 +549,7 @@ state=load();
 const exById=id=>state.exercises.find(e=>e.id===id);
 const wById=id=>state.workouts.find(w=>w.id===id);
 const tById=id=>state.templates.find(t=>t.id===id);
+const pById=id=>state.plans.find(p=>p.id===id);
 const workoutsOn=k=>state.workouts.filter(w=>w.date===k).sort((a,b)=>a.orderInDay-b.orderInDay);
 const effStatus=w=>(w.status==='planned'&&w.date<todayKey())?'missed':w.status;
 const exOf=e=>exById(e.exerciseId)||{id:'',title:'Deleted exercise',category:'other',measurement:'time',tags:[]};
@@ -670,11 +686,11 @@ S.calendar=()=>{
     const sameM=fromKey(ws).getMonth()===fromKey(we).getMonth();
     const range=`${fromKey(ws).getDate()}${sameM?'':' '+fmt(ws,{month:'short'})} – ${fmt(we,{day:'numeric',month:'short'})}`;
     body+=`<div class="cal-head"><button class="icon-btn" data-act="calPrev" aria-label="Previous week">${sv(P.left)}</button><div class="cal-range">${range}</div><button class="icon-btn" data-act="calNext" aria-label="Next week">${sv(P.right)}</button></div>`;
-    if(!c.select)body+=`<p class="hint" style="margin:0 4px 6px">Hold a workout, then drag it to another day.</p>`;
+    body+=c.select?`<p class="hint" style="margin:0 4px 6px">Tap workouts to select them. You can change week and keep selecting.</p>`:`<p class="hint" style="margin:0 4px 6px">Hold a workout, then drag it to another day.</p>`;
     for(let i=0;i<7;i++){const d=addDays(ws,i),l=workoutsOn(d);
       body+=`<section class="dayrow ${d===T?'today':''} ${d<T?'past':''}" data-drop="${d}"><header><button class="dr-label" data-act="openDay" data-date="${d}">${fmt(d,{weekday:'short',day:'numeric',month:'short'})}${d===T?' · Today':''}</button><button class="mini-add" data-act="addOn" data-date="${d}" aria-label="Add workout on ${fmtShort(d)}">${sv(P.plus,16,2.4)}</button></header><div class="dr-cards">${l.length?l.map(w=>card(w,{drag:!c.select,select:c.select})).join(''):'<div class="dr-empty">Rest</div>'}</div></section>`;}
     if(c.select){const n=c.selected.size;
-      footer=`<div class="selbar"><button class="btn btn-ghost" data-act="bulkMove" ${n?'':'disabled'}>Move to…</button><button class="btn btn-ghost" data-act="bulkShift" ${n?'':'disabled'}>Shift days</button><button class="btn btn-danger" data-act="bulkDelete" ${n?'':'disabled'}>Delete${n?' '+n:''}</button></div>`;}
+      footer=`<div class="selbar"><button class="btn btn-primary" data-act="planFromSel" ${n?'':'disabled'}>Save as plan${n?' ('+n+')':''}</button><button class="btn btn-ghost" data-act="bulkMove" ${n?'':'disabled'}>Move to…</button><button class="btn btn-ghost" data-act="bulkShift" ${n?'':'disabled'}>Shift days</button><button class="btn btn-danger" data-act="bulkDelete" ${n?'':'disabled'}>Delete${n?' '+n:''}</button></div>`;}
   }else{
     const m=c.month,gs=weekStart(m);
     const end=addDays(addMonths(m,1),-1);
@@ -692,6 +708,99 @@ S.calendar=()=>{
   return {title:'Calendar',large:true,left:`<button class="text-btn" data-act="calToday">Today</button>`,right,body,footer};
 };
 const dayIdx=(d,gs)=>Math.round((fromKey(d)-fromKey(gs))/864e5);
+
+/* ---------- training plans ---------- */
+const WD_LONG=k=>new Date(2024,0,7+k).toLocaleDateString('en-GB',{weekday:'long'});
+const WD_SHORT=k=>new Date(2024,0,7+k).toLocaleDateString('en-GB',{weekday:'short'});
+const plural=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
+const planDays=p=>p.workouts.reduce((m,w)=>Math.max(m,w.offset),0)+1;
+const planSummary=p=>`${plural(p.workouts.length,'workout')} · ${plural(Math.ceil(planDays(p)/7),'week')}`;
+const cleanEntries=entries=>entries.map(e=>({...clone(e),id:uid(),loggedSets:[],loggedCardio:null,isCompleted:false,notes:'',_open:undefined}));
+function planFromWorkouts(ws,name){
+  const l=[...ws].sort((a,b)=>a.date.localeCompare(b.date)||a.orderInDay-b.orderInDay),d0=l[0].date;
+  return {id:uid(),name,notes:'',createdAt:new Date().toISOString(),startWeekday:fromKey(d0).getDay(),
+    workouts:l.map(w=>({offset:dayIdx(w.date,d0),name:w.name,type:w.type,startTime:w.startTime||null,notes:w.notes||'',entries:cleanEntries(w.entries)}))};
+}
+function nextWeekday(wd){const T=todayKey();return addDays(T,(wd-fromKey(T).getDay()+7)%7);}
+function planFileObj(p){
+  const ids=new Set(p.workouts.flatMap(w=>w.entries.map(e=>e.exerciseId)));
+  return {kind:'hybrid-training-plan',v:1,exportedAt:new Date().toISOString(),
+    plan:{name:p.name,notes:p.notes||'',startWeekday:p.startWeekday,workouts:p.workouts.map(w=>({...w,entries:w.entries.map(e=>({...e,_open:undefined}))}))},
+    exercises:state.exercises.filter(e=>ids.has(e.id))};
+}
+function importPlanObj(o){
+  if(!o||o.kind!=='hybrid-training-plan'||!o.plan||!Array.isArray(o.plan.workouts))throw new Error('not a plan');
+  const map={};let added=0;
+  (Array.isArray(o.exercises)?o.exercises:[]).forEach(x=>{
+    if(!x||!x.id||!x.title)return;
+    if(exById(x.id)){map[x.id]=x.id;return;}
+    const same=state.exercises.find(e=>!e.isArchived&&e.title.toLowerCase()===String(x.title).toLowerCase());
+    if(same){map[x.id]=same.id;return;}
+    state.exercises.push({...newExDraft(x.title),...clone(x),tags:Array.isArray(x.tags)?x.tags:[],media:Array.isArray(x.media)?x.media:[],isArchived:false});map[x.id]=x.id;added++;});
+  const p={id:uid(),name:String(o.plan.name||'Imported plan'),notes:String(o.plan.notes||''),createdAt:new Date().toISOString(),
+    startWeekday:Number.isInteger(o.plan.startWeekday)&&o.plan.startWeekday>=0&&o.plan.startWeekday<7?o.plan.startWeekday:1,
+    workouts:o.plan.workouts.filter(w=>w&&typeof w==='object').map(w=>({offset:Math.max(0,parseInt(w.offset,10)||0),name:String(w.name||'Workout'),type:TYPE_LABEL[w.type]?w.type:'other',startTime:w.startTime||null,notes:String(w.notes||''),
+      entries:(Array.isArray(w.entries)?w.entries:[]).map(e=>({...clone(e),id:uid(),exerciseId:map[e.exerciseId]||e.exerciseId,plannedSets:Array.isArray(e.plannedSets)?e.plannedSets:[],plannedCardio:e.plannedCardio||null,loggedSets:[],loggedCardio:null,isCompleted:false,notes:''}))}))
+      .sort((a,b)=>a.offset-b.offset)};
+  if(!p.workouts.length)throw new Error('empty plan');
+  state.plans.push(p);
+  return {p,added};
+}
+function openPlanApply(p){
+  push({s:'planApply',pid:p.id,name:p.name,wd:p.startWeekday,start:nextWeekday(p.startWeekday),
+    items:p.workouts.map(w=>({key:uid(),offset:w.offset,w:clone(w)}))});
+}
+function handlePlanImport(o){
+  const before=snap();let r;
+  try{r=importPlanObj(o);}catch(e){toast('That file is not a training plan from this app.');return;}
+  save();ui.sheet=null;ui.tab='library';ui.lib.seg='plans';ui.stacks.library=[{s:'plan',id:r.p.id}];
+  openPlanApply(r.p);
+  toast(`Imported “${r.p.name}”${r.added?`, ${plural(r.added,'new exercise')}`:''}`,before);
+}
+function plainCard(w,{cls='',attrs='',tag='div',badge=''}={}){
+  return `<${tag} class="wcard compact ${cls}" ${attrs}><div class="wc-in"><span class="tbadge t-${w.type}">${TYPE_ICON[w.type]||TYPE_ICON.other}</span><div class="wc-main"><div class="wc-name">${esc(w.name||'Untitled workout')}</div><div class="wc-meta">${esc(workoutSummary(w))}</div></div>${badge}</div></${tag}>`;
+}
+S.plan=({id})=>{
+  const p=pById(id);if(!p)return {title:'Plan',body:'<div class="empty"><h3>Plan deleted</h3></div>'};
+  const days=planDays(p),weeks=Math.ceil(days/7);
+  let list='';
+  for(let wk=0;wk<weeks;wk++){
+    const ws=p.workouts.filter(w=>w.offset>=wk*7&&w.offset<wk*7+7);if(!ws.length)continue;
+    const offs=[...new Set(ws.map(w=>w.offset))];
+    list+=`<div class="pv-week"><div class="pv-wh">Week ${wk+1}</div><div class="card" style="padding:2px 12px">${offs.map(o=>`<div class="pv-day"><div class="pv-d">${WD_SHORT((p.startWeekday+o)%7)}<b>${o+1}</b></div><div class="pv-list">${ws.filter(w=>w.offset===o).map(w=>plainCard(w)).join('')}</div></div>`).join('')}</div></div>`;
+  }
+  const body=`<div class="eyebrow">Training plan</div><h1 class="large-title" style="margin-bottom:6px">${esc(p.name)}</h1><p class="hint" style="margin:0 4px 14px">${esc(planSummary(p))} · starts on a ${WD_LONG(p.startWeekday)}</p>
+<div class="group"><label class="row"><span class="row-l">Name</span><input class="row-in" data-in="planName" data-id="${p.id}" value="${esc(p.name)}"></label></div>
+<div class="group" style="margin-top:12px"><button class="row row-btn tint" data-act="planSchedule" data-id="${p.id}">Add to calendar…${sv(P.right,16)}</button><button class="row row-btn" data-act="planExport" data-id="${p.id}">Export plan file${sv(P.right,16)}</button><button class="row row-btn danger" data-act="planDelete" data-id="${p.id}">Delete plan</button></div>
+<div class="sec-h"><span>Workouts</span><span style="text-transform:none;letter-spacing:0">Day number</span></div>${list}`;
+  return {title:p.name,body};
+};
+S.planApply=(scr)=>{
+  const items=[...scr.items].sort((a,b)=>a.offset-b.offset);
+  const dateOf=it=>addDays(scr.start,it.offset);
+  const n=items.length;
+  let body=`<div class="group"><label class="row"><span class="row-l">Start date</span><input class="row-in" type="date" data-in="pvStart" value="${scr.start}"></label></div>`;
+  const sw=fromKey(scr.start).getDay();
+  body+=sw!==scr.wd?`<p class="hint warn" style="margin:8px 4px 0">This plan was made to start on a ${WD_LONG(scr.wd)}. You picked a ${WD_LONG(sw)}, so every workout lands on a different weekday.</p>`:'';
+  if(!n){body+=`<div class="empty" style="margin-top:16px"><h3>Nothing left to add</h3><p>You removed every workout. Go back and start again to restore them.</p></div>`;
+    return {title:'Preview',left:`<button class="text-btn" data-act="back">Cancel</button>`,body,footer:`<button class="btn btn-primary" disabled>Add to calendar</button>`};}
+  const first=dateOf(items[0]),last=dateOf(items[n-1]);
+  const busy=new Set(items.map(dateOf).filter(d=>workoutsOn(d).length));
+  body+=`<p class="hint" style="margin:8px 4px 0">${plural(n,'workout')} from ${fmtShort(first)} to ${fmtShort(last)}. Tap a new workout to edit, move or remove it before adding.${busy.size?` ${plural(busy.size,'day')} already ${busy.size===1?'has':'have'} workouts; they stay as they are.`:''}</p>`;
+  for(let ws=weekStart(first),wk=1;ws<=last;ws=addDays(ws,7),wk++){
+    const rows=[];
+    for(let i=0;i<7;i++){const d=addDays(ws,i);if(d<first||d>last)continue;
+      const old=workoutsOn(d),neu=items.filter(it=>dateOf(it)===d);
+      const cards=old.map(w=>plainCard(w,{cls:'pv-old',badge:'<span class="pv-tag">Existing</span>'})).join('')+
+        neu.map(it=>plainCard(it.w,{cls:'pv-new',tag:'button',attrs:`data-act="pvItem" data-k="${it.key}"`,badge:'<span class="pv-tag">New</span>'})).join('');
+      rows.push(`<div class="pv-day"><div class="pv-d">${fmt(d,{weekday:'short'})}<b>${fromKey(d).getDate()}</b></div><div class="pv-list">${cards||'<div class="pv-rest">Rest</div>'}</div></div>`);}
+    body+=`<div class="pv-week"><div class="pv-wh">${fmt(ws,{day:'numeric',month:'short'})} – ${fmt(addDays(ws,6),{day:'numeric',month:'short'})}</div><div class="card" style="padding:2px 12px">${rows.join('')}</div></div>`;
+  }
+  return {title:'Preview',left:`<button class="text-btn" data-act="back">Cancel</button>`,body,
+    footer:`<button class="btn btn-primary" data-act="pvApply">Add ${plural(n,'workout')}</button>`};
+};
+const pvScr=()=>{for(let i=stack().length-1;i>=0;i--){if(stack()[i].s==='planApply')return stack()[i];}return null;};
+const pvItem=k=>{const s=pvScr();return s&&s.items.find(it=>it.key===k);};
 S.day=({date})=>{
   const l=workoutsOn(date),n=state.dayNotes[date]||{};
   const items=l.map((w,i)=>`<div style="display:flex;gap:6px;align-items:center"><div style="flex:1;min-width:0">${card(w)}</div>${l.length>1?`<div style="display:flex;flex-direction:column"><button class="icon-btn sm" data-act="dayUp" data-wid="${w.id}" ${i===0?'disabled':''} aria-label="Move earlier">${sv(P.up,18)}</button><button class="icon-btn sm" data-act="dayDown" data-wid="${w.id}" ${i===l.length-1?'disabled':''} aria-label="Move later">${sv(P.down,18)}</button></div>`:''}</div>`).join('');
@@ -779,8 +888,8 @@ ${isT?'':`<label class="row"><span class="row-l">Date</span><input class="row-in
 <button class="add-row" data-act="edAddEx">${sv(P.plus,18)} Add exercise</button>
 <div class="sec-h"><span>Notes</span></div><textarea class="ta" data-in="ed" data-f="notes" placeholder="Focus, cues, where you'll train…">${esc(d.notes)}</textarea>`;
   if(isT)body+=`<div class="sec-h"><span>Use it</span></div><div class="group"><button class="row row-btn tint" data-act="edSchedule">Schedule on dates…${sv(P.right,16)}</button>${scr.isNew?'':'<button class="row row-btn danger" data-act="edDelete">Delete template</button>'}</div>`;
-  else if(!scr.isNew)body+=`<div class="group" style="margin-top:22px"><button class="row row-btn danger" data-act="edDelete">Delete workout</button></div>`;
-  return {title:scr.isNew?(isT?'New template':'New workout'):(isT?'Template':'Edit plan'),
+  else if(!scr.isNew&&scr.kind!=='planItem')body+=`<div class="group" style="margin-top:22px"><button class="row row-btn danger" data-act="edDelete">Delete workout</button></div>`;
+  return {title:scr.kind==='planItem'?'Edit workout':scr.isNew?(isT?'New template':'New workout'):(isT?'Template':'Edit plan'),
     left:`<button class="text-btn" data-act="edCancel">Cancel</button>`,right:`<button class="text-btn strong" data-act="edSave">Save</button>`,body};
 };
 function libList(){
@@ -791,17 +900,22 @@ function libList(){
   return l.length?`<div class="group">${l.map(e=>`<button class="lrow" data-act="openEx" data-id="${e.id}"><span class="tbadge sm t-${CAT_TYPE[e.category]}">${TYPE_ICON[CAT_TYPE[e.category]]}</span><span class="lrow-main"><b>${esc(e.title)}</b><small>${esc(defaultSummary(e))}${e.tags.length?' · '+esc(e.tags.join(', ')):''}</small></span>${sv(P.right,16,2.2).replace('<svg','<svg class="chev"')}</button>`).join('')}</div>`:`<div class="empty"><h3>No match</h3><p>Try another word or create the exercise.</p><button class="btn btn-ghost" data-act="newEx">Create exercise</button></div>`;
 }
 S.library=()=>{
-  let body=`<div class="cal-top">${seg('libSeg',[['exercises','Exercises'],['templates','Templates']],ui.lib.seg)}</div>`;
+  let body=`<div class="cal-top">${seg('libSeg',[['exercises','Exercises'],['templates','Templates'],['plans','Plans']],ui.lib.seg)}</div>`;
   if(ui.lib.seg==='exercises'){
     const tags=[...new Set(state.exercises.filter(e=>!e.isArchived).flatMap(e=>e.tags))].sort();
     body+=`<label class="search">${sv(P.search,18)}<input id="libQ" data-in="libQ" value="${esc(ui.lib.q)}" placeholder="Search exercises or tags" aria-label="Search exercises"></label>`;
     body+=chips('libFilter',[['all','All'],['gym','Gym'],['run','Run'],['other','Other'],...tags.map(t=>['#'+t,t])],ui.lib.filter);
     body+=`<div id="libList" style="margin-top:8px">${libList()}</div>`;
+  }else if(ui.lib.seg==='plans'){
+    body+=`<p class="hint" style="margin:0 4px 10px">A plan is a block of workouts you can export, share, and add to the calendar from any start date.</p>`;
+    body+=state.plans.length?`<div class="group">${state.plans.map(p=>`<button class="lrow" data-act="openPlan" data-id="${p.id}"><span class="tbadge sm" style="background:var(--tint-soft);color:var(--tint)">${sv(P.calendar,18,2)}</span><span class="lrow-main"><b>${esc(p.name)}</b><small>${esc(planSummary(p))}</small></span>${sv(P.right,16,2.2).replace('<svg','<svg class="chev"')}</button>`).join('')}</div>`
+      :'<div class="empty"><h3>No plans yet</h3><p>To make one, go to Calendar, tap Select, pick the workouts and tap Save as plan. Or import a plan file someone shared with you.</p></div>';
+    body+=`<div class="sheet-actions"><label class="btn btn-ghost">Import plan file<input type="file" class="file-in" id="planFile" accept=".json,application/json,text/plain"></label></div>`;
   }else{
     body+=`<p class="hint" style="margin:0 4px 10px">Templates are copied onto the calendar, so editing one day never changes another.</p>`;
     body+=state.templates.length?`<div class="group">${state.templates.map(t=>`<div class="trow"><button class="lrow" data-act="openTpl" data-id="${t.id}"><span class="tbadge sm t-${t.type}">${TYPE_ICON[t.type]}</span><span class="lrow-main"><b>${esc(t.name)}</b><small>${esc(workoutSummary(t))}</small></span></button><button class="btn-s" data-act="tplSchedule" data-id="${t.id}">Schedule</button></div>`).join('')}</div>`:'<div class="empty"><h3>No templates yet</h3><p>Save a workout as a template from its menu, or create one here.</p></div>';
   }
-  return {title:'Library',large:true,right:`<button class="icon-btn" data-act="${ui.lib.seg==='exercises'?'newEx':'newTpl'}" aria-label="${ui.lib.seg==='exercises'?'New exercise':'New template'}">${sv(P.plus,24,2)}</button>`,body};
+  return {title:'Library',large:true,right:ui.lib.seg==='plans'?'':`<button class="icon-btn" data-act="${ui.lib.seg==='exercises'?'newEx':'newTpl'}" aria-label="${ui.lib.seg==='exercises'?'New exercise':'New template'}">${sv(P.plus,24,2)}</button>`,body};
 };
 S.exercise=({id})=>{
   const ex=exById(id);if(!ex)return {title:'Exercise',body:'<div class="empty"><h3>Exercise removed</h3></div>'};
@@ -934,9 +1048,9 @@ function renderSheet(s){
     body=`<p class="sheet-sub">${fmt(w.date,{weekday:'long',day:'numeric',month:'long'})} · ${STATUS_LABEL[st]}</p><div class="group act-list">${it.map(([a,l,c])=>`<button class="lrow ${c||''}" data-act="${a}">${l}</button>`).join('')}</div>`;
   }else if(s.k==='dates'){
     const n=s.sel.length;
-    title={move:'Move to',dup:'Duplicate to',bulk:'Move selected to',schedule:'Schedule template'}[s.mode];
-    const sub={move:'Pick the new day.',dup:'Pick one or more days. Copies start as planned.',bulk:`Moves ${ui.cal.selected.size} workout${ui.cal.selected.size>1?'s':''} to one day.`,schedule:`Pick the days for “${esc((tById(s.tid)||{}).name||'')}”.`}[s.mode];
-    const label=s.mode==='move'?(n?`Move to ${fmtShort(s.sel[0])}`:'Pick a day'):s.mode==='bulk'?(n?`Move to ${fmtShort(s.sel[0])}`:'Pick a day'):s.mode==='dup'?(n?`Duplicate to ${n} day${n>1?'s':''}`:'Pick days'):(n?`Schedule on ${n} day${n>1?'s':''}`:'Pick days');
+    title={move:'Move to',pvMove:'Move to',dup:'Duplicate to',bulk:'Move selected to',schedule:'Schedule template'}[s.mode];
+    const sub={move:'Pick the new day.',pvMove:'Pick the new day for this workout.',dup:'Pick one or more days. Copies start as planned.',bulk:`Moves ${ui.cal.selected.size} workout${ui.cal.selected.size>1?'s':''} to one day.`,schedule:`Pick the days for “${esc((tById(s.tid)||{}).name||'')}”.`}[s.mode];
+    const label=s.mode==='move'||s.mode==='pvMove'?(n?`Move to ${fmtShort(s.sel[0])}`:'Pick a day'):s.mode==='bulk'?(n?`Move to ${fmtShort(s.sel[0])}`:'Pick a day'):s.mode==='dup'?(n?`Duplicate to ${n} day${n>1?'s':''}`:'Pick days'):(n?`Schedule on ${n} day${n>1?'s':''}`:'Pick days');
     body=`<p class="sheet-sub">${sub}</p>${dateGrid(s)}<div class="sheet-actions"><button class="btn btn-primary" data-act="dpConfirm" ${n?'':'disabled'}>${label}</button></div>`;
   }else if(s.k==='picker'){
     title='Add exercise';
@@ -947,6 +1061,12 @@ function renderSheet(s){
   }else if(s.k==='shift'){
     title='Shift selected';const n=s.n;
     body=`<p class="sheet-sub">Moves ${ui.cal.selected.size} workout${ui.cal.selected.size>1?'s':''} by the same number of days.</p><div class="stepper"><button data-act="shiftBy" data-v="-1" aria-label="One day earlier">−</button><b>${n>0?'+':''}${n}</b><button data-act="shiftBy" data-v="1" aria-label="One day later">+</button></div><p class="muted" style="text-align:center;margin:0">${n===0?'Pick a number of days':`${Math.abs(n)} day${Math.abs(n)>1?'s':''} ${n>0?'later':'earlier'}`}</p><div class="sheet-actions"><button class="btn btn-primary" data-act="shiftApply" ${n?'':'disabled'}>Shift</button></div>`;
+  }else if(s.k==='planName'){
+    title='Save as plan';
+    body=`<p class="sheet-sub">${plural(ui.cal.selected.size,'workout')} selected. Logged results are not saved in the plan, only what was planned.</p><div class="group"><label class="row"><span class="row-l">Plan name</span><input class="row-in" id="planNameIn" data-in="sheetName" value="${esc(s.name||'')}" placeholder="Half marathon block"></label></div><div class="sheet-actions"><button class="btn btn-primary" data-act="planSave">Save plan</button></div>`;
+  }else if(s.k==='pvMenu'){
+    const it=pvItem(s.key),pv=pvScr();if(!it||!pv)return '';title=it.w.name;
+    body=`<p class="sheet-sub">${fmt(addDays(pv.start,it.offset),{weekday:'long',day:'numeric',month:'long'})} · ${esc(workoutSummary(it.w))}</p><div class="group act-list"><button class="lrow" data-act="pvEdit">Edit workout</button><button class="lrow" data-act="pvMove">Move to another day…</button><button class="lrow danger" data-act="pvRemove">Remove from this import</button></div>`;
   }else if(s.k==='confirm'){
     title=s.title;
     body=`<p class="sheet-sub">${esc(s.msg)}</p><div class="sheet-actions"><button class="btn btn-danger" data-act="confirmOk">${esc(s.ok)}</button><button class="btn btn-ghost" data-act="sheetClose">Cancel</button></div>`;
@@ -1023,9 +1143,10 @@ const A={
   bulkDelete:()=>{const before=snap(),c=ui.cal.selected.size;state.workouts=state.workouts.filter(w=>!ui.cal.selected.has(w.id));ui.cal.selected.clear();ui.cal.select=false;save();render();toast(`Deleted ${c} workout${c>1?'s':''}`,before);},
   dpPrev:()=>{ui.sheet.month=addMonths(ui.sheet.month,-1);render();},
   dpNext:()=>{ui.sheet.month=addMonths(ui.sheet.month,1);render();},
-  dpPick:d=>{const s=ui.sheet;if(s.mode==='move'||s.mode==='bulk')s.sel=[d.date];else s.sel=s.sel.includes(d.date)?s.sel.filter(x=>x!==d.date):[...s.sel,d.date].sort();render();},
+  dpPick:d=>{const s=ui.sheet;if(s.mode==='move'||s.mode==='bulk'||s.mode==='pvMove')s.sel=[d.date];else s.sel=s.sel.includes(d.date)?s.sel.filter(x=>x!==d.date):[...s.sel,d.date].sort();render();},
   dpConfirm:()=>{const s=ui.sheet,before=snap();ui.sheet=null;
     if(s.mode==='move'){moveWorkout(s.wid,s.sel[0]);return;}
+    if(s.mode==='pvMove'){const pv=pvScr(),it=pvItem(s.key);if(pv&&it)it.offset=dayIdx(s.sel[0],pv.start);render();toast(`Moved to ${fmtShort(s.sel[0])}`);return;}
     if(s.mode==='bulk'){ui.cal.selected.forEach(id=>{const w=wById(id);if(w)w.date=s.sel[0];});const c=ui.cal.selected.size;ui.cal.selected.clear();ui.cal.select=false;save();render();toast(`Moved ${c} workout${c>1?'s':''} to ${fmtShort(s.sel[0])}`,before);return;}
     if(s.mode==='dup'){const w=wById(s.wid);s.sel.forEach(d=>state.workouts.push(workoutFrom(w,d,w.templateId)));save();render();toast(`Copied to ${s.sel.length} day${s.sel.length>1?'s':''}`,before);return;}
     if(s.mode==='schedule'){const t=tById(s.tid);s.sel.forEach(d=>state.workouts.push(workoutFrom(t,d,t.id)));save();render();toast(`Scheduled “${t.name}” on ${s.sel.length} day${s.sel.length>1?'s':''}`,before);}
@@ -1070,6 +1191,7 @@ const A={
   pickCreate:()=>{const q=(ui.sheet.q||'').trim(),scr=editorScr();push({s:'exEditor',isNew:true,draft:newExDraft(q),addTo:scr&&scr.draft});},
   edCancel:()=>pop(),
   edSave:()=>{const scr=topScr(),d=scr.draft;d.entries.forEach(e=>delete e._open);
+    if(scr.kind==='planItem'){stack().pop();const pv=pvScr(),it=pv&&pv.items.find(x=>x.key===scr.key);if(it){it.offset=dayIdx(d.date||addDays(pv.start,it.offset),pv.start);const w=clone(d);delete w.date;if(!w.name.trim())w.name=TYPE_LABEL[w.type]+' session';it.w=w;}render();toast('Updated in the preview');return;}
     if(scr.kind==='template'){if(!d.name.trim())d.name='Untitled template';const i=state.templates.findIndex(t=>t.id===d.id);if(i>=0)state.templates[i]=d;else state.templates.push(d);save();stack().pop();render();toast(`Saved “${d.name}”`);return;}
     if(!d.name.trim())d.name=d.entries.length?exOf(d.entries[0]).title:TYPE_LABEL[d.type]+' session';
     const i=state.workouts.findIndex(w=>w.id===d.id);
@@ -1078,7 +1200,26 @@ const A={
     save();stack().pop();render();toast(scr.isNew?`Added to ${fmtShort(d.date)}`:'Plan saved');},
   edDelete:()=>{const scr=topScr();openSheet({k:'confirm',title:scr.kind==='template'?'Delete template?':'Delete workout?',msg:`“${scr.draft.name||'Untitled'}” will be removed.${scr.kind==='template'?' Workouts already scheduled from it stay on the calendar.':''}`,ok:'Delete',then:'edDelete'});},
   edSchedule:()=>{const scr=topScr(),d=scr.draft;d.entries.forEach(e=>delete e._open);if(!d.name.trim())d.name='Untitled template';const i=state.templates.findIndex(t=>t.id===d.id);if(i>=0)state.templates[i]=clone(d);else state.templates.push(clone(d));scr.isNew=false;save();openSheet({k:'dates',mode:'schedule',tid:d.id,month:monthStart(todayKey()),sel:[]});},
-  confirmOk:()=>{const s=ui.sheet;ui.sheet=null;CONFIRM[s.then]();},
+  confirmOk:()=>{const s=ui.sheet;ui.sheet=null;CONFIRM[s.then](s);},
+  planFromSel:()=>{if(!ui.cal.selected.size)return;openSheet({k:'planName',name:''});setTimeout(()=>{const i=$('#planNameIn');if(i)i.focus();},300);},
+  planSave:()=>{const ws=[...ui.cal.selected].map(wById).filter(Boolean);if(!ws.length){closeSheet();return;}
+    const name=(ui.sheet.name||'').trim()||'My plan',p=planFromWorkouts(ws,name);state.plans.push(p);
+    ui.cal.selected.clear();ui.cal.select=false;ui.sheet=null;save();render();toast(`Saved “${name}” · ${plural(p.workouts.length,'workout')}. Find it in Library, Plans.`);},
+  openPlan:d=>push({s:'plan',id:d.id}),
+  planSchedule:d=>{const p=pById(d.id);if(p)openPlanApply(p);},
+  planExport:d=>{const p=pById(d.id);if(!p)return;const slug=p.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'plan';
+    shareFile(JSON.stringify(planFileObj(p),null,2),`plan-${slug}.json`,()=>toast('Plan file ready'));},
+  planDelete:d=>{const p=pById(d.id);if(p)openSheet({k:'confirm',title:'Delete plan?',msg:`“${p.name}” is removed from your library. Workouts already added to the calendar stay there.`,ok:'Delete plan',then:'planDelete',pid:p.id});},
+  pvItem:d=>openSheet({k:'pvMenu',key:d.k}),
+  pvEdit:()=>{const pv=pvScr(),it=pvItem(ui.sheet.key);if(!pv||!it)return;ui.sheet=null;push({s:'editor',kind:'planItem',isNew:false,key:it.key,draft:{...clone(it.w),date:addDays(pv.start,it.offset)}});},
+  pvMove:()=>{const pv=pvScr(),it=pvItem(ui.sheet.key);if(!pv||!it)return;const d=addDays(pv.start,it.offset);openSheet({k:'dates',mode:'pvMove',key:it.key,orig:d,month:monthStart(d),sel:[]});},
+  pvRemove:()=>{const pv=pvScr(),k=ui.sheet.key,it=pvItem(k);ui.sheet=null;if(pv)pv.items=pv.items.filter(x=>x.key!==k);render();if(it)toast(`Removed “${it.w.name}” from this import`);},
+  pvApply:()=>{const pv=pvScr();if(!pv||!pv.items.length)return;const before=snap();
+    const items=[...pv.items].sort((a,b)=>a.offset-b.offset);
+    items.forEach(it=>{const w=workoutFrom(it.w,addDays(pv.start,it.offset));w.source='plan';w.planId=pv.pid;state.workouts.push(w);});
+    save();stack().pop();const first=addDays(pv.start,items[0].offset);
+    ui.tab='calendar';ui.stacks.calendar=[];ui.cal.mode='week';ui.cal.week=weekStart(first);ui.cal.select=false;ui.cal.selected.clear();render();
+    toast(`Added ${plural(items.length,'workout')} from “${pv.name}”`,before);},
   libSeg:d=>{ui.lib.seg=d.v;render();},
   libFilter:d=>{ui.lib.filter=d.v;render();},
   openEx:d=>{if(!d.id)return;push({s:'exercise',id:d.id});},
@@ -1103,11 +1244,7 @@ const A={
   openExport:()=>push({s:'data',mode:'export'}),
   openImport:()=>push({s:'data',mode:'import'}),
   copyExport:()=>{const ta=$('#exportTa');const ok=()=>toast('Copied');const fb=()=>{ta.focus();ta.select();toast('Selected. Use Copy from the menu.');};try{navigator.clipboard.writeText(ta.value).then(ok,fb);}catch(e){fb();}},
-  saveExport:()=>{const json=JSON.stringify(state,null,2),name=`hybrid-training-backup-${todayKey()}.json`;
-    const done=()=>{ui.lastBackup=true;toast('Backup ready');};
-    try{const f=new File([json],name,{type:'application/json'});
-      if(navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f],title:name}).then(done,err=>{if(err&&err.name!=='AbortError')downloadFile(json,name);});return;}}catch(e){}
-    downloadFile(json,name);done();},
+  saveExport:()=>shareFile(JSON.stringify(state,null,2),`hybrid-training-backup-${todayKey()}.json`,()=>{ui.lastBackup=true;toast('Backup ready');}),
   doImport:()=>importText($('#importTa').value),
   addStarter:()=>{const have=new Set(state.exercises.map(e=>e.title.toLowerCase()));const add=starterExercises().filter(e=>!have.has(e.title.toLowerCase()));const before=snap();state.exercises.push(...add);save();render();toast(`Added ${add.length} exercises`,before);},
   askReset:()=>openSheet({k:'confirm',title:'Erase all data?',msg:'Every workout, exercise, template and note in this app is deleted. Export a backup first if you might want it back.',ok:'Erase everything',then:'reset'})
@@ -1117,12 +1254,19 @@ const CONFIRM={
     if(scr.kind==='template')state.templates=state.templates.filter(t=>t.id!==d.id);
     else state.workouts=state.workouts.filter(w=>w.id!==d.id);
     save();stack().pop();if(scr.kind==='workout'&&topScr()&&topScr().s==='workout')stack().pop();render();toast(`Deleted “${d.name}”`,before);},
+  planDelete:s=>{const before=snap(),p=pById(s.pid);state.plans=state.plans.filter(x=>x.id!==s.pid);save();if(topScr()&&topScr().s==='plan')stack().pop();render();if(p)toast(`Deleted “${p.name}”`,before);},
   reset:()=>{const before=snap();state=emptyState();save();ui.stacks={today:[],calendar:[],library:[],progress:[]};ui.cal.select=false;ui.cal.selected.clear();ui.tab='today';render();toast('All data erased',before);}
 };
+function shareFile(json,name,done){
+  try{const f=new File([json],name,{type:'application/json'});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f],title:name}).then(done,err=>{if(err&&err.name!=='AbortError'){downloadFile(json,name);done();}});return;}}catch(e){}
+  downloadFile(json,name);done();
+}
 function downloadFile(text,name){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
-function importText(raw){try{const s=JSON.parse(raw);if(!s||s.v!==1||!Array.isArray(s.workouts)||!Array.isArray(s.exercises))throw 0;
-  s.templates=Array.isArray(s.templates)?s.templates:[];s.dayNotes=s.dayNotes||{};s.settings=Object.assign(emptyState().settings,s.settings||{});
+function importText(raw){try{const s=JSON.parse(raw);if(s&&s.kind==='hybrid-training-plan'){pop();handlePlanImport(s);return;}if(!s||s.v!==1||!Array.isArray(s.workouts)||!Array.isArray(s.exercises))throw 0;
+  s.templates=Array.isArray(s.templates)?s.templates:[];s.plans=Array.isArray(s.plans)?s.plans:[];s.dayNotes=s.dayNotes||{};s.settings=Object.assign(emptyState().settings,s.settings||{});
   const before=snap();state=s;save();pop();toast('Backup imported',before);}catch(e){const er=$('#importErr');if(er)er.textContent='That is not a backup from this app. Pick the .json file you exported, or paste its whole text.';}}
+document.addEventListener('change',e=>{if(e.target&&e.target.id==='planFile'){const f=e.target.files&&e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{let o=null;try{o=JSON.parse(String(r.result));}catch(x){}handlePlanImport(o);};r.readAsText(f);e.target.value='';}});
 document.addEventListener('change',e=>{if(e.target&&e.target.id==='importFile'){const f=e.target.files&&e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>importText(String(r.result));r.readAsText(f);e.target.value='';}});
 function reorderDay(id,dir){const w=wById(id),l=workoutsOn(w.date),i=l.indexOf(w),j=i+dir;if(j<0||j>=l.length)return;[l[i],l[j]]=[l[j],l[i]];l.forEach((x,k)=>x.orderInDay=k);save();render();}
 
@@ -1163,10 +1307,13 @@ const IN={
       if(f==='ivReps')iv.reps=n||1;if(f==='ivWork')iv.workM=n||400;if(f==='ivPace')iv.paceSecPerKm=parseDur(v,60)||240;if(f==='ivRec')iv.recSec=n||0;}},
   libQ:v=>{ui.lib.q=v;const l=$('#libList');if(l)l.innerHTML=libList();},
   pickQ:v=>{ui.sheet.q=v;const l=$('#pickList');if(l)l.innerHTML=pickList();},
-  addDate:v=>{if(v)ui.sheet.date=v;}
+  addDate:v=>{if(v)ui.sheet.date=v;},
+  sheetName:v=>{if(ui.sheet)ui.sheet.name=v;},
+  planName:(v,d)=>{const p=pById(d.id);if(p){p.name=v.trim()?v:p.name;save();}}
 };
 /* run fields recalculate on change (blur), then update the sibling inputs in place */
 const CH={
+  pvStart:v=>{const pv=pvScr();if(pv&&v){pv.start=v;render();}},
   run:(v,d)=>{const {e}=getEntry(d);const c=e.loggedCardio=e.loggedCardio||{distanceM:null,durationSec:null,avgPaceSecPerKm:null,avgHR:null,rpe:null,splits:null,source:'manual'};const f=d.f;
     if(f==='dist'){const n=parseNum(v);c.distanceM=n!=null?Math.round(n*1000):null;}
     if(f==='dur')c.durationSec=parseDur(v,60);
