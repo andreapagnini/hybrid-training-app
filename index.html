@@ -562,7 +562,7 @@ function emptyState(){
   return {v:1,exercises:[],workouts:[],templates:[],plans:[],dayNotes:{},settings:{weekStart:'mon',weightUnit:'kg',distanceUnit:'km'}};
 }
 
-const APP_VERSION='1.7.1';
+const APP_VERSION='1.7.2';
 const LS_KEY='hybrid-training-v1';
 let state=null;
 function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw){const s=JSON.parse(raw);if(s&&s.v===1&&Array.isArray(s.workouts)){if(!Array.isArray(s.plans))s.plans=[];return s;}}}catch(e){}return emptyState();}
@@ -1055,7 +1055,7 @@ S.progress=()=>{
 S.settings=()=>{
   const st=state.settings;
   const body=`<div class="sec-h"><span>Appearance</span></div><div class="group"><div class="row"><span class="row-l">Theme</span>${seg('setTheme',[['auto','Automatic'],['light','Light'],['dark','Dark']],st.theme||'auto')}</div></div><p class="hint">Automatic follows your phone's light or dark setting.</p>
-<div class="sec-h"><span>Motivation</span></div><div class="group"><button class="row row-btn" data-act="setElmo" role="switch" aria-checked="${!!st.elmo}"><span class="row-l" style="color:var(--fg);flex:1;text-align:left;white-space:nowrap">Elmo Motivation</span><span class="switch ${st.elmo?'on':''}"></span></button></div><p class="hint">Plays a short Elmo video when you save a workout as partial. ${ui.elmoDl==='saving'?'Saving the video on this phone…':ui.elmoDl==='failed'?'The video could not be saved for offline use; it plays when you are online. Switch off and on to try again.':st.elmo?'The video is saved on this phone, so it also works offline.':'Switching it on saves the video (20 MB) on this phone so it works offline.'}</p>
+<div class="sec-h"><span>Motivation</span></div><div class="group"><button class="row row-btn" data-act="setElmo" role="switch" aria-checked="${!!st.elmo}"><span class="row-l" style="color:var(--fg);flex:1;text-align:left;white-space:nowrap">Elmo Motivation</span><span class="switch ${st.elmo?'on':''}"></span></button></div><p class="hint">Plays a short Elmo video when you save a workout as partial. ${ui.elmoDl==='saving'?'Saving the video on this phone…':st.elmo?'The video is saved on this phone, so it also works offline.':'Switching it on saves the video (20 MB) on this phone so it works offline.'}</p>
 <div class="sec-h"><span>Calendar</span></div><div class="group"><div class="row"><span class="row-l">Week starts</span>${seg('setWeek',[['mon','Monday'],['sun','Sunday']],st.weekStart)}</div></div>
 <div class="sec-h"><span>Your data</span></div><div class="group"><button class="row row-btn" data-act="openExport">Export backup${sv(P.right,16)}</button><button class="row row-btn" data-act="openImport">Import backup${sv(P.right,16)}</button><button class="row row-btn danger" data-act="askReset">Erase all data</button></div><p class="hint">Everything stays on this phone: ${state.workouts.length} workout${state.workouts.length===1?'':'s'}, ${state.exercises.length} exercise${state.exercises.length===1?'':'s'}. No account, no network. Weights are in kg and distances in km.${ui.lastBackup?'':' Export a backup now and then and save it to Files.'}</p>
 <div class="sec-h"><span>Connections</span></div><div class="group"><div class="row"><span class="row-l" style="width:auto;color:var(--fg)">Garmin Connect</span><span class="row-v">Coming later</span></div></div><p class="hint">Runs will import into the Actual fields of the matching planned run.</p><p class="hint" style="text-align:center;margin-top:24px">Version ${APP_VERSION}<br>Author: Andrea Pagnini<br>© 2026 Andrea Pagnini. All rights reserved.</p>`;
@@ -1150,14 +1150,19 @@ function render(){
 /* ---------- mutations ---------- */
 /* Elmo Motivation. Switching it on saves the video in the phone's storage (Cache API); a blob URL is
    kept ready so playback starts straight from the tap on Mark as partial, which lets iOS play sound. */
-const ELMO_SRC='media/Elmo_mot.mov',ELMO_CACHE='elmo-media-v1';let elmoUrl=null;
+const ELMO_SRC='media/Elmo_mot.mov',ELMO_CACHE='elmo-media-v1';let elmoUrl=null,elmoGen=0;
+/* One cache, one entry: saving again replaces it, so switching on and off never piles up copies.
+   elmoGen guards against a download that finishes after the switch was turned off again. */
 async function elmoPrepare(download){
+  const gen=++elmoGen;
   try{if(!('caches' in window))return false;const c=await caches.open(ELMO_CACHE);let r=await c.match(ELMO_SRC);
-    if(!r&&download){const res=await fetch(ELMO_SRC,{cache:'no-store'});if(!res.ok)throw 0;await c.put(ELMO_SRC,res.clone());r=res;}
-    if(!r)return false;const b=await r.blob();if(elmoUrl)URL.revokeObjectURL(elmoUrl);elmoUrl=URL.createObjectURL(new Blob([b],{type:'video/quicktime'}));return true;}
+    if(!r&&download){const res=await fetch(ELMO_SRC,{cache:'no-store'});if(!res.ok)throw 0;await c.put(ELMO_SRC,res);r=await c.match(ELMO_SRC);}
+    if(gen!==elmoGen||!state.settings.elmo){if(!state.settings.elmo)await caches.delete(ELMO_CACHE);return false;}
+    if(!r)return false;const b=await r.blob();if(!b.size)throw 0;
+    if(elmoUrl)URL.revokeObjectURL(elmoUrl);elmoUrl=URL.createObjectURL(b.type?b:new Blob([b],{type:'video/quicktime'}));return true;}
   catch(e){return false;}
 }
-async function elmoForget(){if(elmoUrl){URL.revokeObjectURL(elmoUrl);elmoUrl=null;}try{await caches.delete(ELMO_CACHE);}catch(e){}}
+async function elmoForget(){elmoGen++;if(elmoUrl){URL.revokeObjectURL(elmoUrl);elmoUrl=null;}try{await caches.delete(ELMO_CACHE);}catch(e){}}
 function playElmo(){
   const host=$('.phone');if(!host)return;const old=host.querySelector('.elmo-scrim');if(old)old.remove();
   const sc=document.createElement('div');sc.className='elmo-scrim';
@@ -1335,7 +1340,11 @@ const A={
   setW:d=>{state.settings.weightUnit=d.v;save();render();},
   setD:d=>{state.settings.distanceUnit=d.v;save();render();},
   setElmo:()=>{state.settings.elmo=!state.settings.elmo;save();render();
-    if(state.settings.elmo){ui.elmoDl='saving';render();elmoPrepare(true).then(ok=>{ui.elmoDl=ok?'':'failed';render();toast(ok?'Elmo saved on this phone for offline use':'Could not save the video. It will play when you are online.');});}
+    if(state.settings.elmo){ui.elmoDl='saving';render();const gen=elmoGen+1;
+      elmoPrepare(true).then(ok=>{if(gen!==elmoGen)return;ui.elmoDl='';
+        if(ok)toast('Elmo saved on this phone for offline use');
+        else{state.settings.elmo=false;save();elmoForget();toast('Could not download the Elmo video. Check your connection and try again.');}
+        render();});}
     else{ui.elmoDl='';elmoForget();}},
   setTheme:d=>{state.settings.theme=d.v;save();applyTheme();render();},
   setWeek:d=>{state.settings.weekStart=d.v;ui.cal.week=weekStart(ui.cal.week);save();render();},
