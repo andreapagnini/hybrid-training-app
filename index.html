@@ -562,7 +562,7 @@ function emptyState(){
   return {v:1,exercises:[],workouts:[],templates:[],plans:[],dayNotes:{},settings:{weekStart:'mon',weightUnit:'kg',distanceUnit:'km'}};
 }
 
-const APP_VERSION='1.7.2';
+const APP_VERSION='1.7.2-garmin.1';
 const LS_KEY='hybrid-training-v1';
 let state=null;
 function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw){const s=JSON.parse(raw);if(s&&s.v===1&&Array.isArray(s.workouts)){if(!Array.isArray(s.plans))s.plans=[];return s;}}}catch(e){}return emptyState();}
@@ -1007,6 +1007,7 @@ ${used?`<div class="row"><span class="row-l">Category</span><span class="row-in 
 ${used?`<p class="hint" style="margin:6px 4px 0">Used in ${plural(used,'workout')}, so the category and how it's logged are fixed. To log it differently, create a new exercise.</p>`:''}
 ${scr.err?`<p class="err">${esc(scr.err)}</p>`:''}
 <div class="sec-h"><span>Default for new workouts</span></div><div class="group">${defs}</div>
+${window.HTG?HTG.exRow(scr):''}
 <div class="sec-h"><span>Execution notes</span></div><textarea class="ta" ${a('notes')} placeholder="Setup, cues, common mistakes…">${esc(d.notes)}</textarea>
 <div class="sec-h"><span>Videos and links</span></div><div class="card">${d.media.map((m,i)=>`<div class="media-edit"><span>${sv(P.play,14)} ${esc(m.caption||hostOf(m.url))}</span><button class="icon-btn sm danger" data-act="exDelMedia" data-i="${i}" aria-label="Remove link">${sv(P.x,16)}</button></div>`).join('')}
 <div class="media-add"><input id="mUrl" type="url" placeholder="Paste a YouTube or Instagram link" aria-label="Video link"><input id="mCap" placeholder="Caption (optional)" aria-label="Caption"><button class="btn btn-ghost" style="height:42px" data-act="exAddMedia">Add link</button></div></div>
@@ -1058,7 +1059,7 @@ S.settings=()=>{
 <div class="sec-h"><span>Motivation</span></div><div class="group"><button class="row row-btn" data-act="setElmo" role="switch" aria-checked="${!!st.elmo}"><span class="row-l" style="color:var(--fg);flex:1;text-align:left;white-space:nowrap">Elmo Motivation</span><span class="switch ${st.elmo?'on':''}"></span></button></div><p class="hint">Plays a short Elmo video when you save a workout as partial. ${ui.elmoDl==='saving'?'Saving the video on this phone…':st.elmo?'The video is saved on this phone, so it also works offline.':'Switching it on saves the video (20 MB) on this phone so it works offline.'}</p>
 <div class="sec-h"><span>Calendar</span></div><div class="group"><div class="row"><span class="row-l">Week starts</span>${seg('setWeek',[['mon','Monday'],['sun','Sunday']],st.weekStart)}</div></div>
 <div class="sec-h"><span>Your data</span></div><div class="group"><button class="row row-btn" data-act="openExport">Export backup${sv(P.right,16)}</button><button class="row row-btn" data-act="openImport">Import backup${sv(P.right,16)}</button><button class="row row-btn danger" data-act="askReset">Erase all data</button></div><p class="hint">Everything stays on this phone: ${state.workouts.length} workout${state.workouts.length===1?'':'s'}, ${state.exercises.length} exercise${state.exercises.length===1?'':'s'}. No account, no network. Weights are in kg and distances in km.${ui.lastBackup?'':' Export a backup now and then and save it to Files.'}</p>
-<div class="sec-h"><span>Connections</span></div><div class="group"><div class="row"><span class="row-l" style="width:auto;color:var(--fg)">Garmin Connect</span><span class="row-v">Coming later</span></div></div><p class="hint">Runs will import into the Actual fields of the matching planned run.</p><p class="hint" style="text-align:center;margin-top:24px">Version ${APP_VERSION}<br>Author: Andrea Pagnini<br>© 2026 Andrea Pagnini. All rights reserved.</p>`;
+<div class="sec-h"><span>Connections</span></div><div class="group"><button class="row row-btn" data-act="garmin"><span class="row-l" style="width:auto;color:var(--fg);flex:1;text-align:left">Garmin Connect</span><span class="row-v">${window.HTG?esc(HTG.statusText()):'Not set up'}</span>${sv(P.right,16)}</button></div><p class="hint">Sends your planned workouts to your Garmin watch.</p><p class="hint" style="text-align:center;margin-top:24px">Version ${APP_VERSION}<br>Author: Andrea Pagnini<br>© 2026 Andrea Pagnini. All rights reserved.</p>`;
   return {title:'Settings',body};
 };
 S.data=({mode})=>{
@@ -1591,8 +1592,11 @@ applyTheme();
 const clock=()=>{const d=new Date();$('#clock').textContent=`${d.getHours()}:${pad(d.getMinutes())}`;};clock();setInterval(clock,30000);
 if(linkPlanTemplates())save();
 if(state.settings.elmo)elmoPrepare(true);
+/* Hooks for garmin.js (Send to Garmin), which lives in its own file. */
+window.HT={S,A,IN,CONFIRM,ui,get state(){return state;},save,render,push,pop,topScr,stack,toast,openSheet,esc,sv,P,seg,exById,todayKey,addDays,fmtShort};
 render();
 })();
 </script>
+<script src="garmin.js"></script>
 </body>
 </html>

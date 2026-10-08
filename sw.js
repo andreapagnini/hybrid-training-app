@@ -1,10 +1,11 @@
 // Offline support: serve the app from cache, refresh the cache in the background.
 // Bump VERSION whenever any file below changes so phones pick up the update.
-const VERSION = 'v1.7.2';
+const VERSION = 'v1.7.2-garmin.1';
 const CACHE = 'hybrid-training-' + VERSION;
 const FILES = [
   './',
   './index.html',
+  './garmin.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -30,6 +31,8 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET' || url.origin !== location.origin) return;
   // Videos stream straight from the network (range requests), not from the cache.
   if (url.pathname.includes('/media/')) return;
+  // The Garmin helper's API is always live, never cached.
+  if (url.pathname.includes('/api/')) return;
   e.respondWith(
     caches.open(CACHE).then(async cache => {
       const cached = await cache.match(req, { ignoreSearch: true }) ||

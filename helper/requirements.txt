@@ -1,0 +1,10 @@
+# Pinned on purpose: update garminconnect only after reading its changelog.
+garminconnect[workout]==0.3.17
+curl_cffi==0.16.3
+ua-generator==2.1.6
+requests==2.34.2
+pydantic==2.14.0
+fastapi==0.143.0
+starlette==1.7.0
+uvicorn==0.54.0
+google-cloud-storage==3.17.0
