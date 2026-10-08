@@ -1,6 +1,6 @@
 // Offline support: serve the app from cache, refresh the cache in the background.
 // Bump VERSION whenever any file below changes so phones pick up the update.
-const VERSION = 'v1.6.0';
+const VERSION = 'v1.7.0';
 const CACHE = 'hybrid-training-' + VERSION;
 const FILES = [
   './',
@@ -26,7 +26,10 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  const url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== location.origin) return;
+  // Videos stream straight from the network (range requests), not from the cache.
+  if (url.pathname.includes('/media/')) return;
   e.respondWith(
     caches.open(CACHE).then(async cache => {
       const cached = await cache.match(req, { ignoreSearch: true }) ||

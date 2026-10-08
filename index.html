@@ -97,7 +97,7 @@ h1,h2,h3{text-wrap:balance}
 .eyebrow{font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--fg-2)}
 .large-title{font-family:var(--font-display);font-size:34px;font-weight:700;letter-spacing:-.022em;line-height:1.1;margin:2px 0 14px}
 .tabbar{flex:none;display:grid;grid-template-columns:repeat(4,1fr);background:var(--bar);border-top:.5px solid var(--sep);padding:6px 0 24px}
-@media (max-width:599px){.tabbar{padding-bottom:calc(6px + env(safe-area-inset-bottom))}.sheet{padding-bottom:calc(14px + env(safe-area-inset-bottom))}#toast{bottom:calc(84px + env(safe-area-inset-bottom))}}
+@media (max-width:599px){.tabbar{padding-bottom:calc(6px + env(safe-area-inset-bottom))}.sheet{padding-bottom:calc(14px + env(safe-area-inset-bottom))}#toast{bottom:calc(84px + env(safe-area-inset-bottom))}.elmo{bottom:calc(158px + env(safe-area-inset-bottom))}}
 .tab{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10.5px;font-weight:500;color:var(--fg-3);padding:2px 0}
 .tab.on{color:var(--tint)}
 .icon-btn{width:38px;height:38px;display:grid;place-items:center;border-radius:50%;color:var(--tint)}
@@ -414,6 +414,17 @@ h1,h2,h3{text-wrap:balance}
 #toast{position:absolute;left:16px;right:16px;bottom:96px;z-index:60;display:flex;justify-content:center;pointer-events:none}
 .toast{pointer-events:auto;display:flex;align-items:center;gap:14px;background:var(--toast);color:var(--toast-fg);padding:11px 16px;border-radius:14px;font-size:14.5px;box-shadow:0 8px 24px rgba(0,0,0,.22);animation:fade .2s}
 .toast button{color:var(--tint);font-weight:700}
+/* Elmo Motivation: a floating video card above the toast, bottom right */
+.elmo{position:absolute;right:14px;bottom:170px;z-index:70;width:150px;border-radius:22px;overflow:hidden;background:#000;box-shadow:0 18px 40px rgba(0,0,0,.35),0 0 0 1px rgba(255,255,255,.08);transform-origin:100% 100%;transform:translateY(30px) scale(.8) rotate(4deg);opacity:0;transition:transform .5s cubic-bezier(.2,1.35,.35,1),opacity .25s}
+.elmo.in{transform:none;opacity:1}
+.elmo.out{transform:translateY(20px) scale(.9);opacity:0;transition:transform .3s,opacity .3s}
+.elmo video{display:block;width:100%;aspect-ratio:884/1432;object-fit:cover;background:#000}
+.elmo-bar{position:absolute;left:0;top:0;height:3px;width:0;background:var(--done)}
+.elmo-cap{position:absolute;left:8px;right:8px;bottom:8px;padding:6px 8px;border-radius:12px;background:rgba(0,0,0,.5);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff;font-size:12px;font-weight:600;line-height:1.25;text-align:center}
+.elmo-x{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.45);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff}
+.switch{flex:none;margin-left:auto;position:relative;width:51px;height:31px;border-radius:999px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--sep);transition:background .2s}
+.switch::after{content:'';position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.25);transition:transform .25s cubic-bezier(.3,1.3,.5,1)}
+.switch.on{background:var(--done);box-shadow:none}.switch.on::after{transform:translateX(20px)}
 .file-in{display:none}
 .export{width:100%;height:220px;font-family:ui-monospace,Menlo,monospace;font-size:12px;border:0;border-radius:10px;background:var(--surface);padding:10px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -550,7 +561,7 @@ function emptyState(){
   return {v:1,exercises:[],workouts:[],templates:[],plans:[],dayNotes:{},settings:{weekStart:'mon',weightUnit:'kg',distanceUnit:'km'}};
 }
 
-const APP_VERSION='1.6.0';
+const APP_VERSION='1.7.0';
 const LS_KEY='hybrid-training-v1';
 let state=null;
 function load(){try{const raw=localStorage.getItem(LS_KEY);if(raw){const s=JSON.parse(raw);if(s&&s.v===1&&Array.isArray(s.workouts)){if(!Array.isArray(s.plans))s.plans=[];return s;}}}catch(e){}return emptyState();}
@@ -1043,6 +1054,7 @@ S.progress=()=>{
 S.settings=()=>{
   const st=state.settings;
   const body=`<div class="sec-h"><span>Appearance</span></div><div class="group"><div class="row"><span class="row-l">Theme</span>${seg('setTheme',[['auto','Automatic'],['light','Light'],['dark','Dark']],st.theme||'auto')}</div></div><p class="hint">Automatic follows your phone's light or dark setting.</p>
+<div class="sec-h"><span>Motivation</span></div><div class="group"><button class="row row-btn" data-act="setElmo" role="switch" aria-checked="${!!st.elmo}"><span class="row-l" style="color:var(--fg);flex:1;text-align:left;white-space:nowrap">Elmo Motivation</span><span class="switch ${st.elmo?'on':''}"></span></button></div><p class="hint">Plays a short Elmo video when you save a workout as partial. It needs an internet connection.</p>
 <div class="sec-h"><span>Calendar</span></div><div class="group"><div class="row"><span class="row-l">Week starts</span>${seg('setWeek',[['mon','Monday'],['sun','Sunday']],st.weekStart)}</div></div>
 <div class="sec-h"><span>Your data</span></div><div class="group"><button class="row row-btn" data-act="openExport">Export backup${sv(P.right,16)}</button><button class="row row-btn" data-act="openImport">Import backup${sv(P.right,16)}</button><button class="row row-btn danger" data-act="askReset">Erase all data</button></div><p class="hint">Everything stays on this phone: ${state.workouts.length} workout${state.workouts.length===1?'':'s'}, ${state.exercises.length} exercise${state.exercises.length===1?'':'s'}. No account, no network. Weights are in kg and distances in km.${ui.lastBackup?'':' Export a backup now and then and save it to Files.'}</p>
 <div class="sec-h"><span>Connections</span></div><div class="group"><div class="row"><span class="row-l" style="width:auto;color:var(--fg)">Garmin Connect</span><span class="row-v">Coming later</span></div></div><p class="hint">Runs will import into the Actual fields of the matching planned run.</p><p class="hint" style="text-align:center;margin-top:24px">Version ${APP_VERSION}<br>Author: Andrea Pagnini<br>© 2026 Andrea Pagnini. All rights reserved.</p>`;
@@ -1135,6 +1147,21 @@ function render(){
 }
 
 /* ---------- mutations ---------- */
+/* Started from the tap on Mark as partial, so iOS lets it play with sound */
+function playElmo(){
+  const host=$('.phone');if(!host)return;const old=host.querySelector('.elmo');if(old)old.remove();
+  const el=document.createElement('div');el.className='elmo';el.setAttribute('role','dialog');el.setAttribute('aria-label','Elmo Motivation');
+  el.innerHTML=`<video src="media/Elmo_mot.mov" playsinline webkit-playsinline preload="auto"></video><div class="elmo-bar"></div><div class="elmo-cap">Partial still counts. Keep going!</div><button class="elmo-x" aria-label="Close video">${sv(P.x,16,2.6)}</button>`;
+  host.appendChild(el);
+  const v=el.querySelector('video'),bar=el.querySelector('.elmo-bar');let gone=false;
+  const close=()=>{if(gone)return;gone=true;v.pause();el.classList.remove('in');el.classList.add('out');setTimeout(()=>el.remove(),320);};
+  el.querySelector('.elmo-x').addEventListener('click',e=>{e.stopPropagation();close();});
+  v.addEventListener('timeupdate',()=>{if(v.duration)bar.style.width=(v.currentTime/v.duration*100)+'%';});
+  v.addEventListener('ended',()=>setTimeout(close,500));
+  v.addEventListener('error',()=>{gone=true;el.remove();});
+  const p=v.play();if(p)p.catch(()=>{v.muted=true;v.play().catch(()=>{gone=true;el.remove();});});
+  requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add('in')));
+}
 function setStatus(id,status,{fill=false,quiet=false}={}){
   const w=wById(id);if(!w)return;const before=snap();
   if(fill)fillAsPlanned(w);
@@ -1219,7 +1246,7 @@ const A={
   markDone:d=>{const w=wById(d.wid);if(w.entries.every(entryComplete)){setStatus(w.id,'done');}else openSheet({k:'partial',wid:w.id});},
   markSkip:d=>setStatus(d.wid,'skipped'),
   reopen:d=>setStatus(d.wid,'planned'),
-  partialPartial:()=>{const id=ui.sheet.wid;ui.sheet=null;setStatus(id,'partial');},
+  partialPartial:()=>{const id=ui.sheet.wid;ui.sheet=null;setStatus(id,'partial');if(state.settings.elmo)playElmo();},
   partialDone:()=>{const id=ui.sheet.wid;ui.sheet=null;setStatus(id,'done',{fill:true});},
   dayUp:d=>reorderDay(d.wid,-1),dayDown:d=>reorderDay(d.wid,1),
   dayEnergy:d=>{const n=state.dayNotes[d.date]=state.dayNotes[d.date]||{};n.energy=n.energy===+d.v?null:+d.v;save();render();},
@@ -1297,6 +1324,7 @@ const A={
   progEx:d=>{ui.prog.ex=d.v;render();},
   setW:d=>{state.settings.weightUnit=d.v;save();render();},
   setD:d=>{state.settings.distanceUnit=d.v;save();render();},
+  setElmo:()=>{state.settings.elmo=!state.settings.elmo;save();render();},
   setTheme:d=>{state.settings.theme=d.v;save();applyTheme();render();},
   setWeek:d=>{state.settings.weekStart=d.v;ui.cal.week=weekStart(ui.cal.week);save();render();},
   openExport:()=>push({s:'data',mode:'export'}),
